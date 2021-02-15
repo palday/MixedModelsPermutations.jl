@@ -1,6 +1,7 @@
 using MixedModels: fixef!, stderror!
 using MixedModels: getθ!, setθ!, updateL!
 using MixedModels: unscaledre!
+using Statistics
 
 """
     nonparametricbootstrap(rng::AbstractRNG, nsamp::Integer, m::MixedModel;
@@ -111,17 +112,32 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
     β = coef(mod)
     y = response(mod) # we are now modifying the model
     res = residuals(mod)
-    # TODO: inflate these
+
     sample!(rng, res, y; replace=true)
-    #y .= res
+    # inflate these to be on the same scale as the empirical variation instead of the MLE
+    y .*= sdest(mod) / std(y; corrected=false)
+    # sign flipping
+    # y .*= rand(rng, (-1,1), length(y))
+
+    σ = sdest(mod)
 
     for (re, trm) in zip(blups, reterms)
-         # TODO: inflate re
-         nre = size(re,2)
-         samp = sample(rng, 1:nre, nre; replace=true)
-         # our RE are actually already scaled, but this method
-         # isn't dependent on the scaling (only the RNG methods are)
-         MixedModels.unscaledre!(y, trm, re[:,samp])
+        npreds, ngrps = size(re)
+        samp = sample(rng, 1:ngrps, ngrps; replace=true)
+
+        newre = view(re, :, samp)
+        # sign flipping
+        # newre *= diagm(rand(rng, (-1,1), ngrps))
+
+        # inflation
+        λmle =  trm.λ * σ                               # L_R in CGR
+        λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
+        # no transpose because the RE are transposed relativ to CGR
+        inflation = λmle / λemp
+
+        # our RE are actually already scaled, but this method (of unscaledre!)
+        # isn't dependent on the scaling (only the RNG methods are)
+        MixedModels.unscaledre!(y, trm, inflation * newre)
     end
 
     y .+= mod.X * β

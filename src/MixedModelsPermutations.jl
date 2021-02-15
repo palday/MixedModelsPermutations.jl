@@ -4,7 +4,9 @@ using LinearAlgebra
 using MixedModels
 using MixedModels: MixedModelBootstrap
 using Random
+using SparseArrays
 using StaticArrays
+using Statistics
 using StatsBase
 
 export MixedModelPermutation,
