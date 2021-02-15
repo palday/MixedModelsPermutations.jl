@@ -140,6 +140,7 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
         MixedModels.unscaledre!(y, trm, inflation * newre)
     end
 
+    # TODO: convert to inplace ops with mul!(y, mod.X, β, one(T), one(T))
     y .+= mod.X * β
 
     # mark model as unfitted
