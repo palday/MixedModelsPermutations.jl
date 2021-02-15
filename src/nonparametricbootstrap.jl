@@ -4,10 +4,8 @@ using MixedModels: unscaledre!
 using Statistics
 
 """
-    nonparametricbootstrap(rng::AbstractRNG, nsamp::Integer, m::MixedModel;
-        β = coef(m), σ = m.σ, θ = m.θ, use_threads=false)
-    nonparametricbootstrap(nsamp::Integer, m::MixedModel;
-        β = coef(m), σ = m.σ, θ = m.θ, use_threads=false)
+    nonparametricbootstrap([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
+                           use_threads=false)
 
 Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `MixedModelBootstrap`.
 
@@ -106,9 +104,42 @@ end
 resample!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
     resample!(GLOBAL_RNG, mod, blups, reterms)
 
-function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
+"""
+    resample!([rng::AbstractRNG,] mod::LinearMixedModel,
+              blups=ranef(mod), reterms=mod.reterms)
+
+Simulate and install a new response using resampling at the observational and group level.
+
+At both levels, resampling is done with replacement. At the observational level,
+this is resampling of the residuals, i.e. comparable to the step in the classical
+nonparametric bootstrap for OLS regression. At the group level, samples are done
+jointly for all  terms ("random intercept and random slopes", conditional modes)
+associated with a particular level of a blocking factor. For example, the
+predicted slope and intercept for a single participant or item are kept together.
+This clumping in the resampling procedure is necessary to preserve the original
+correlation structure of the slopes and intercepts.
+
+In addition to this resampling step, there is also an inflation step. Due to the
+shrinkage associated with the random effects in a mixed model, the variance of the
+conditional modes / BLUPs / random intercepts and slopes is less than the variance
+estimated by the model and displayed in the model summary or via `MixedModels.VarCorr`.
+This shrinkage also impacts the observational level residuals. To compensate for this,
+the resampled residuals and groups are scale-inflated so that their standard deviation
+matches that of the estimates in the original model.
+
+See also [`nonparametricbootstrap`](@ref) and `MixedModels.simulate!`.
+
+# Reference
+The method implemented here is based on the approach given in Section 3.2 of:
+Carpenter, J.R., Goldstein, H. and Rasbash, J. (2003).
+A novel bootstrap procedure for assessing the relationship between class size and achievement.
+Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
+https://doi.org/10.1111/1467-9876.00415
+
+"""
+function resample!(rng::AbstractRNG, mod::LinearMixedModel,
                    blups=ranef(mod),
-                   reterms=mod.reterms) where {T}
+                   reterms=mod.reterms)
     β = coef(mod)
     y = response(mod) # we are now modifying the model
     res = residuals(mod)
