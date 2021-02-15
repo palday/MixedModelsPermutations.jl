@@ -144,7 +144,7 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
     y .+= mod.X * β
 
     # mark model as unfitted
-    mod.optsum.feval = 0
+    mod.optsum.feval = -1
 
     return mod
 end
