@@ -58,6 +58,7 @@ df.item = categorical(df.id_item)
 df = select(df,[:part, :f_part, :item, :f_item, :y])
 
 
+sign = vcat(df.y...)
 
 ### models
 co = Dict(:f_part => EffectsCoding(), :f_item => EffectsCoding())
