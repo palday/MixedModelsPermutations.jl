@@ -57,10 +57,6 @@ df.part = categorical(df.id_part)
 df.item = categorical(df.id_item)
 df = select(df,[:part, :f_part, :item, :f_item, :y])
 
-#sign = reduce(vcat,df.y)
-# more juliaesk:
-sign = vcat(df.y...)
-
 
 
 ### models
