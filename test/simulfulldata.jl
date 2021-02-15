@@ -34,26 +34,27 @@ df = expandgrid(df_part,df_item)
 
 
 ### add random intercept participant
-df.rep = map(x -> randn(Random.MersenneTwister(x + 1000),Float64,(1,nt))*Ut',df.id_part)
+df.rep = map(x -> randn(Random.MersenneTwister(x + 1000),Float64,(1,n_t))*Ut',df.id_part)
 
 
 ### add random slope participant / different per item-category
-df.repf = map((x,y) -> randn(Random.MersenneTwister(x + 100*y+ 10000),Float64,(1,nt))*Ut',df.id_part,df.f_item.=="Fi1")
+df.repf = map((x,y) -> randn(Random.MersenneTwister(x + 100*y+ 10000),Float64,(1,n_t))*Ut',df.id_part,df.f_item.=="Fi1")
 
 ### add random intercept item
-df.rei = map(x -> randn(Random.MersenneTwister(x + 20000),Float64,(1,nt))*Ut',df.id_item)
+df.rei = map(x -> randn(Random.MersenneTwister(x + 20000),Float64,(1,n_t))*Ut',df.id_item)
 
 ### add random slope item ( different per subject-category)
-df.reif = map((x,y) -> randn(Random.MersenneTwister(x + 100*y+ 30000),Float64,(1,nt))*Ut',df.id_item,df.f_part.=="Fp1")
+df.reif = map((x,y) -> randn(Random.MersenneTwister(x + 100*y+ 30000),Float64,(1,n_t))*Ut',df.id_item,df.f_part.=="Fp1")
 
 
 
 ### add error
-df.err = map(x -> randn(Random.MersenneTwister(x +40000),Float64,(1,nt))*Ut',[1:1:nrow(df);])
+df.err = map(x -> randn(Random.MersenneTwister(x +40000),Float64,(1,n_t))*Ut',[1:1:nrow(df);])
 
 
 df.y = df.rep + df.repf + df.rei + df.reif + df.err
-
+df.part = categorical(df.id_part)
+df.item = categorical(df.id_item)
 df = select(df,[:part, :f_part, :item, :f_item, :y])
 
 #sign = reduce(vcat,df.y)
