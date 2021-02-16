@@ -52,3 +52,20 @@ end
 
 
 Base.propertynames(p::MixedModelPermutation) = propertynames(_perm2boot(p))
+
+
+function Base.getproperty(p::MixedModelPermutation, s::Symbol)
+    if s ∈ [:objective, :σ, :θ, :se]
+        getproperty.(getfield(p, :fits), s)
+    elseif s == :β
+        tidyβ(p)
+    elseif s == :coefpvalues
+        coefpvalues(p)
+    elseif s == :σs
+        tidyσs(p)
+    elseif s == :allpars
+        allpars(p)
+    else
+        getfield(p, s)
+    end
+end
