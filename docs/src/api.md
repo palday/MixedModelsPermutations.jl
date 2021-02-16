@@ -23,7 +23,15 @@ MixedModelsPermutations.resample!
 permutation
 ```
 
+```@docs
+olsranef
+```
+
 Note that this method is not exported to avoid a name collision with `Base.permute!`.
 ```@docs
 MixedModelsPermutations.permute!
+```
+
+```@docs
+permutationtest
 ```
