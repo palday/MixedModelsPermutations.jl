@@ -12,6 +12,26 @@ DocTestFilters = [r"([a-z]*) => \1", r"getfield\(.*##[0-9]+#[0-9]+"]
 ```@docs
 nonparametricbootstrap
 ```
+
+Note that this method is not exported to match `permute!`.
 ```@docs
-resample!
+MixedModelsPermutations.resample!
+```
+
+## Permutation Testing
+```@docs
+permutation
+```
+
+```@docs
+olsranef
+```
+
+Note that this method is not exported to avoid a name collision with `Base.permute!`.
+```@docs
+MixedModelsPermutations.permute!
+```
+
+```@docs
+permutationtest
 ```
