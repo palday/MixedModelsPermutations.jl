@@ -5,7 +5,7 @@ using MixedModelsPermutations: resample!
 using StableRNGs
 using Test
 
-const io = IOBuffer()
+isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
@@ -15,6 +15,8 @@ const io = IOBuffer()
     @test_logs (:warn,) show(io, rm1)
 
     non = nonparametricbootstrap(StableRNG(42),1000, m1)
+    @test non isa MixedModelBootstrap
+
     df = combine(groupby(DataFrame(non.allpars), [:type, :group, :names]),
                 :value => shortestcovint => :interval)
 

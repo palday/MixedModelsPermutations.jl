@@ -1,8 +1,3 @@
-using MixedModels: fixef!, stderror!
-using MixedModels: getθ!, setθ!, updateL!
-using MixedModels: unscaledre!
-using Statistics
-
 """
     nonparametricbootstrap([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
                            use_threads=false)
@@ -11,11 +6,9 @@ Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `Mi
 
 The default random number generator is `Random.GLOBAL_RNG`.
 
-# Named Arguments
-
-`β`, `σ`, and `θ` are the values of `m`'s parameters for simulating the responses.
-`σ` is only valid for `LinearMixedModel`.
 `GeneralizedLinearMixedModel` is currently unsupported.
+
+# Named Arguments
 `use_threads` determines whether or not to use thread-based parallelism.
 
 Note that `use_threads=true` may not offer a performance boost and may even
@@ -38,10 +31,8 @@ function nonparametricbootstrap(
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
 ) where {T}
-    β::AbstractVector=coef(morig)
-    θ = morig.θ
-
-    βsc, θsc, p, k = similar(β), similar(θ), length(β), length(θ)
+    βsc, θsc = similar(morig.β), similar(morig.θ)
+    p, k = length(βsc), length(θsc)
     m = deepcopy(morig)
 
     β_names = (Symbol.(fixefnames(morig))..., )
@@ -102,7 +93,7 @@ function nonparametricbootstrap(rng::AbstractRNG, n::Integer,
 end
 
 resample!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
-    resample!(GLOBAL_RNG, mod, blups, reterms)
+    resample!(Random.GLOBAL_RNG, mod, blups, reterms)
 
 """
     resample!([rng::AbstractRNG,] mod::LinearMixedModel,
@@ -129,17 +120,21 @@ matches that of the estimates in the original model.
 
 See also [`nonparametricbootstrap`](@ref) and `MixedModels.simulate!`.
 
+!!! warning
+    This method has serious limitations for singular models because resampling from
+    a distribution with many zeros (e.g. the random effects components with zero variance)
+    will often generate new data with even less variance.
+
 # Reference
 The method implemented here is based on the approach given in Section 3.2 of:
 Carpenter, J.R., Goldstein, H. and Rasbash, J. (2003).
 A novel bootstrap procedure for assessing the relationship between class size and achievement.
 Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
 https://doi.org/10.1111/1467-9876.00415
-
 """
-function resample!(rng::AbstractRNG, mod::LinearMixedModel,
+function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
                    blups=ranef(mod),
-                   reterms=mod.reterms)
+                   reterms=mod.reterms) where {T}
     β = coef(mod)
     y = response(mod) # we are now modifying the model
     res = residuals(mod)
@@ -147,18 +142,13 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel,
     sample!(rng, res, y; replace=true)
     # inflate these to be on the same scale as the empirical variation instead of the MLE
     y .*= sdest(mod) / std(y; corrected=false)
-    # sign flipping
-    # y .*= rand(rng, (-1,1), length(y))
 
     σ = sdest(mod)
-
     for (re, trm) in zip(blups, reterms)
         npreds, ngrps = size(re)
         samp = sample(rng, 1:ngrps, ngrps; replace=true)
 
         newre = view(re, :, samp)
-        # sign flipping
-        # newre *= diagm(rand(rng, (-1,1), ngrps))
 
         # inflation
         λmle =  trm.λ * σ                               # L_R in CGR
@@ -172,7 +162,7 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel,
     end
 
     # TODO: convert to inplace ops with mul!(y, mod.X, β, one(T), one(T))
-    y .+= mod.X * β
+    mul!(y, mod.X, β, one(T), one(T))
 
     # mark model as unfitted
     mod.optsum.feval = -1
