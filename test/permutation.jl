@@ -44,6 +44,9 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
                   zip(permutationtest(perm, m1, :lesser),
                       permutationtest(perm, m1, :greater))) .== 1)
 
+        # we should have a p-value near 1 since our null distribution
+        # we generated from value being tested...
+        @test first(permutationtest(perm, m1)) > 0.95
         @test_throws ArgumentError permutationtest(perm, m1, :bad)
 
     end
