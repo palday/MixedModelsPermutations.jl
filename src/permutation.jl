@@ -22,15 +22,40 @@ In this case, threads at the level of the linear algebra may already occupy all
 processors/processor cores. There are plans to provide better support in coordinating
 Julia- and BLAS-level threads in the future.
 
+!!! note
+    The permutation (test) generates samples from H0, from which
+    it is possible to compute p-values. The bootstrap typically generates
+    samples from H1, which are convenient for generating coverage/confidence
+    intervals. Of course, confidence intervals and p-values are duals of each
+    other, so it is possible to convert from one to the other.
+
 # Method
 
-The method implemented here is based on the approach given in
+The method implemented here is based on the approach given in:
+
+ter Braak C.J.F. (1992) Permutation Versus Bootstrap Significance Tests in
+Multiple Regression and Anova. In: Jöckel KH., Rothe G., Sendler W. (eds)
+Bootstrapping and Related Techniques. Lecture Notes in Economics and Mathematical
+Systems, vol 376. Springer, Berlin, Heidelberg.
+https://doi.org/10.1007/978-3-642-48850-4_10
+
+and
+
+Winkler, A. M., Ridgway, G. R., Webster, M. A., Smith, S. M., & Nichols, T. E. (2014).
+Permutation inference for the general linear model. NeuroImage, 92, 381–397.
+https://doi.org/10.1016/j.neuroimage.2014.01.060
+
+!!! warning
+    This method has serious limitations for singular models because sign-flipping a zero
+    is not an effective randomization technique.
 """
 function permutation(
     rng::AbstractRNG,
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    β::AbstractVector{T}=coef(morig),
+    residual_method=:signflip
 ) where {T}
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
@@ -62,7 +87,8 @@ function permutation(
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        mod = permute!(rng, mod, blups, reterms)
+        mod = permute!(rng, mod, blups, reterms;
+                       β=β, residual_method=residual_method)
         unlock(rnglock)
         refit!(mod)
         (
@@ -93,67 +119,86 @@ function permutation(rng::AbstractRNG, n::Integer,
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-permute!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
-    permute!(GLOBAL_RNG, mod, blups, reterms)
+permute!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms; kwargs...) =
+    permute!(Random.GLOBAL_RNG, mod, blups, reterms; kwargs...)
 
 """
     permute!([rng::AbstractRNG,] mod::LinearMixedModel,
-              blups=ranef(mod), reterms=mod.reterms)
+              blups=ranef(mod), reterms=mod.reterms;
+              β=coef(mod), residual_method=:signflip)
 
-Simulate and install a new response via sign-flipped permutation of the residuals
-at the observational and sign-flipping of the conditional modes at group level.
+Simulate and install a new response via permutation of the residuals
+at the observational level and sign-flipping of the conditional modes at group level.
+
+Permutation at the level of residuals can be accomplished either via sign
+flipping (`residual_method=:signflip`) or via classical
+permutation/shuffling (`residual_method=:shuffle`).
+
+Generally, permutations are used to test a particular (null) hypothesis. This
+hypothesis is specified via by setting `β` argument to match the hypothesis. For
+example, the null hypothesis that the first coefficient is zero would expressed as
+
+```julialang
+julia> hypothesis = coef(model);
+julia> hypothesis[1] = 0.0;
+```
 
 Sign-flipped permutation of the residuals is similar to permuting the
+(fixed-effects) design matrix; shuffling the residuals is the same as permuting the
 (fixed-effects) design matrix. Sign-flipping the conditional modes (random effects)
 preserves the correlation structure of the random effects, while also being equivalent to
 permutation via swapped labels for categorical variables.
 
-!!! note
-    This method has serious limitations for singular models because permuting zeros
+!!! warning
+    This method has serious limitations for singular models because sign-flipping a zero
+    is not an effective randomization technique.
 
 See also [`permutation`](@ref), [`nonparametricbootstrap`](@ref) and [`resample!`](@ref).
 
-# Reference
-ter Braak?
+The functions `coef` and `coefnames` from `MixedModels` may also be useful.
 
+# Reference
+The method implemented here is based on the approach given in:
+
+ter Braak C.J.F. (1992) Permutation Versus Bootstrap Significance Tests in
+Multiple Regression and Anova. In: Jöckel KH., Rothe G., Sendler W. (eds)
+Bootstrapping and Related Techniques. Lecture Notes in Economics and Mathematical
+Systems, vol 376. Springer, Berlin, Heidelberg.
+https://doi.org/10.1007/978-3-642-48850-4_10
+
+and
+
+Winkler, A. M., Ridgway, G. R., Webster, M. A., Smith, S. M., & Nichols, T. E. (2014).
+Permutation inference for the general linear model. NeuroImage, 92, 381–397.
+https://doi.org/10.1016/j.neuroimage.2014.01.060
 """
-function permute!(rng::AbstractRNG, mod::LinearMixedModel,
+function permute!(rng::AbstractRNG, mod::LinearMixedModel{T},
                    blups=ranef(mod),
-                   reterms=mod.reterms)
-    β = coef(mod)
+                   reterms=mod.reterms;
+                   β::AbstractVector{T}=coef(mod),
+                   residual_method=:signflip) where {T}
     y = response(mod) # we are now modifying the model
     copy!(y, residuals(mod))
 
-    shuffle!(rng, y)
-    # inflate these to be on the same scale as the empirical variation instead of the MLE
-    # y .*= sdest(mod) / std(y; corrected=false)
-    # sign flipping
-    y .*= rand(rng, (-1,1), length(y))
-
-    # σ = sdest(mod)
+    if residual_method == :shuffle
+        shuffle!(rng, y)
+    elseif  residual_method == :signflip
+        y .*= rand(rng, (-1,1), length(y))
+    else
+        throw(ArgumentError("Invalid: residual permutation method: $(residual_method)"))
+    end
 
     for (re, trm) in zip(blups, reterms)
         npreds, ngrps = size(re)
-        samp = sample(rng, 1:ngrps, ngrps; replace=false)
-
-        # use a view to avoid copying
-        newre = view(re, :, samp)
         # sign flipping
-        newre *= diagm(rand(rng, (-1,1), ngrps))
-
-        # inflation
-        #λmle =  trm.λ * σ                               # L_R in CGR
-        #λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
-        # no transpose because the RE are transposed relativ to CGR
-        #inflation = λmle / λemp
+        newre = re * diagm(rand(rng, (-1,1), ngrps))
 
         # our RE are actually already scaled, but this method (of unscaledre!)
         # isn't dependent on the scaling (only the RNG methods are)
         MixedModels.unscaledre!(y, trm, newre)
     end
 
-    # TODO: convert to inplace ops with mul!(y, mod.X, β, one(T), one(T))
-    y .+= mod.X * β
+    mul!(y, mod.X, β, one(T), one(T))
 
     # mark model as unfitted
     mod.optsum.feval = -1

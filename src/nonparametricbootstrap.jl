@@ -93,7 +93,7 @@ function nonparametricbootstrap(rng::AbstractRNG, n::Integer,
 end
 
 resample!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
-    resample!(GLOBAL_RNG, mod, blups, reterms)
+    resample!(Random.GLOBAL_RNG, mod, blups, reterms)
 
 """
     resample!([rng::AbstractRNG,] mod::LinearMixedModel,
@@ -120,7 +120,7 @@ matches that of the estimates in the original model.
 
 See also [`nonparametricbootstrap`](@ref) and `MixedModels.simulate!`.
 
-!!! note
+!!! warning
     This method has serious limitations for singular models because resampling from
     a distribution with many zeros (e.g. the random effects components with zero variance)
     will often generate new data with even less variance.
