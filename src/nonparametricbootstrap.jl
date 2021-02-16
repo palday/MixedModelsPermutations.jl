@@ -1,8 +1,3 @@
-using MixedModels: fixef!, stderror!
-using MixedModels: getθ!, setθ!, updateL!
-using MixedModels: unscaledre!
-using Statistics
-
 """
     nonparametricbootstrap([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
                            use_threads=false)
@@ -38,10 +33,8 @@ function nonparametricbootstrap(
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
 ) where {T}
-    β::AbstractVector=coef(morig)
-    θ = morig.θ
-
-    βsc, θsc, p, k = similar(β), similar(θ), length(β), length(θ)
+    βsc, θsc = similar(morig.β), similar(morig.θ)
+    p, k = length(βsc), length(θsc)
     m = deepcopy(morig)
 
     β_names = (Symbol.(fixefnames(morig))..., )
