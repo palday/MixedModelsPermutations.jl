@@ -132,9 +132,9 @@ A novel bootstrap procedure for assessing the relationship between class size an
 Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
 https://doi.org/10.1111/1467-9876.00415
 """
-function resample!(rng::AbstractRNG, mod::LinearMixedModel,
+function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
                    blups=ranef(mod),
-                   reterms=mod.reterms)
+                   reterms=mod.reterms) where {T}
     β = coef(mod)
     y = response(mod) # we are now modifying the model
     res = residuals(mod)
@@ -142,18 +142,13 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel,
     sample!(rng, res, y; replace=true)
     # inflate these to be on the same scale as the empirical variation instead of the MLE
     y .*= sdest(mod) / std(y; corrected=false)
-    # sign flipping
-    # y .*= rand(rng, (-1,1), length(y))
 
     σ = sdest(mod)
-
     for (re, trm) in zip(blups, reterms)
         npreds, ngrps = size(re)
         samp = sample(rng, 1:ngrps, ngrps; replace=true)
 
         newre = view(re, :, samp)
-        # sign flipping
-        # newre *= diagm(rand(rng, (-1,1), ngrps))
 
         # inflation
         λmle =  trm.λ * σ                               # L_R in CGR
@@ -167,7 +162,7 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel,
     end
 
     # TODO: convert to inplace ops with mul!(y, mod.X, β, one(T), one(T))
-    y .+= mod.X * β
+    mul!(y, mod.X, β, one(T), one(T))
 
     # mark model as unfitted
     mod.optsum.feval = -1
