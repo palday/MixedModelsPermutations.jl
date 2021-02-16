@@ -3,6 +3,7 @@ using MixedModels
 using MixedModelsPermutations
 using MixedModelsPermutations: permute!
 using StableRNGs
+using Statistics
 using Test
 
 isdefined(@__MODULE__, :io) || const io = IOBuffer()
@@ -10,39 +11,43 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
     m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy)
-    rm1 = permute!(StableRNG(42), deepcopy(m1))
+    rm1 = permute!(StableRNG(42), deepcopy(m1); residual_method=:signflip)
+    rm1 = permute!(StableRNG(42), deepcopy(m1); residual_method=:shuffle)
     # test marking as not fit
     @test_logs (:warn,) show(io, rm1)
+    @test_throws ArgumentError permute!(deepcopy(m1); residual_method=:bad)
 
-    perm = permutation(StableRNG(42),1000, m1)
+    H0 = coef(m1)
+    H0[2] = 0.0 # slope of days is 0
+
+
+    perm = permutation(StableRNG(42),1000, m1; β=H0)
     @test perm isa MixedModelPermutation
 
     df = combine(groupby(DataFrame(perm.allpars), [:type, :group, :names]),
                 :value => shortestcovint => :interval)
 
-    # let rho = filter(:type => ==("ρ"), df)
-    #     violations = mapreduce(+, rho[:, :interval]) do (a,b)
-    #         return !(-1 <= a <= b <= +1)
-    #     end
+    let days = filter(df) do row
+            return row.type == "β" && row.names == "days"
+        end
 
-    #     @test violations == 0
-    # end
+        lower, upper = only(days.interval)
 
-    # let beta = filter(:type => ==("β"), df)
-    #     violations = mapreduce(+, zip(fixef(m1), beta[:, :interval])) do (b, (lower,upper))
-    #         return !(lower <= b <= upper)
-    #     end
-    #     @test violations == 0
-    # end
+        @test coef(m1)[2] > upper
+        @test coef(m1)[2] > -lower
 
-    # let sigma = filter(:type => ==("σ"), df)
-    #     sigs =[ MixedModels.σs(m1).subj...; m1.σ ]
+    end
 
-    #     violations = mapreduce(+, zip(sigs, sigma[:, :interval])) do (b, (lower,upper))
-    #         return !(0 <= lower <= b <= upper)
-    #     end
-    #     @test violations == 0
-    # end
+    @testset "permutationtest" begin
+        # the total area above and below the observed value should equal 1
+        @test all(map(sum,
+                  zip(permutationtest(perm, m1, :lesser),
+                      permutationtest(perm, m1, :greater))) .== 1)
+
+        @test_throws ArgumentError permutationtest(perm, m1, :bad)
+
+    end
+
 end
 
 @testset "GLMM" begin

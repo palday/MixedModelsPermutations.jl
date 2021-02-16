@@ -7,6 +7,7 @@ using SparseArrays
 using StaticArrays
 using Statistics
 using StatsBase
+using Tables
 
 using MixedModels: MixedModelBootstrap
 using MixedModels: fixef!, stderror!
@@ -17,7 +18,8 @@ import MixedModels: allpars, coefpvalues, issingular, setθ!, tidyβ, tidyσs
 
 export MixedModelPermutation,
        nonparametricbootstrap,
-       permutation
+       permutation,
+       permutationtest
 
 include("mixedmodelpermutation.jl")
 include("nonparametricbootstrap.jl")

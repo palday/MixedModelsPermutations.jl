@@ -205,3 +205,42 @@ function permute!(rng::AbstractRNG, mod::LinearMixedModel{T},
 
     return mod
 end
+
+
+permutationtest(perm::MixedModelPermutation, model::LinearMixedModel) = permutationtest(perm::MixedModelPermutation, model, :twosided)
+
+"""
+    permutationtest(perm::MixedModelPermutation, model, type=:greater)
+
+Perform a permutation using the already computed permutation and given the observed values.
+
+The `type` parameter specifies the directionality of a one-sided test
+(either `lesser` or `greater`, depending on the hypothesized difference to the null hypothesis).
+
+See also [`permutation`](@ref).
+
+"""
+function permutationtest(perm::MixedModelPermutation, model, type::Symbol=:greater)
+    if type == :greater
+        comp = >
+    elseif type == :lesser
+        comp = <
+    else
+        throw(ArgumentError("Comparison type $(type) unsupported"))
+    end
+
+    ests = Dict(Symbol(k) => v for (k,v) in zip(coefnames(model), coef(model)))
+    perms = columntable(perm.β)
+
+    dd = Dict{Symbol, Vector}()
+
+    for k in Symbol.(coefnames(model))
+        dd[k] = perms.β[perms.coefname .== k]
+        # if type == :twosided
+        #      dd[k] .= abs.(dd[k] .- ests[k])
+        # end
+    end
+    results = (; (k => mean(comp(ests[k]), v) for (k,v) in dd)...)
+
+    return results
+end
