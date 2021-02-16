@@ -1,5 +1,10 @@
+using MixedModels: fixef!, stderror!
+using MixedModels: getθ!, setθ!, updateL!
+using MixedModels: unscaledre!
+using Statistics
+
 """
-    nonparametricbootstrap([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
+    permutation([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
                            use_threads=false)
 
 Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `MixedModelBootstrap`.
@@ -19,13 +24,9 @@ Julia- and BLAS-level threads in the future.
 
 # Method
 
-The method implemented here is based on the approach given in Section 3.2 of:
-Carpenter, J.R., Goldstein, H. and Rasbash, J. (2003).
-A novel bootstrap procedure for assessing the relationship between class size and achievement.
-Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
-https://doi.org/10.1111/1467-9876.00415
+The method implemented here is based on the approach given in
 """
-function nonparametricbootstrap(
+function permutation(
     rng::AbstractRNG,
     n::Integer,
     morig::LinearMixedModel{T};
@@ -61,7 +62,7 @@ function nonparametricbootstrap(
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        mod = resample!(rng, mod, blups, reterms)
+        mod = permute!(rng, mod, blups, reterms)
         unlock(rnglock)
         refit!(mod)
         (
@@ -72,7 +73,7 @@ function nonparametricbootstrap(
          θ = SVector{k,T}(getθ!(θsc, mod)),
         )
     end
-    MixedModelBootstrap(
+    MixedModelPermutation(
         samp,
         deepcopy(morig.λ),
         getfield.(morig.reterms, :inds),
@@ -81,90 +82,74 @@ function nonparametricbootstrap(
     )
 end
 
-function nonparametricbootstrap(nsamp::Integer, m::LinearMixedModel; kwargs...)
-    return nonparametricbootstrap(Random.GLOBAL_RNG, nsamp, m; kwargs...)
+function permutation(nsamp::Integer, m::LinearMixedModel; kwargs...)
+    return permutation(Random.GLOBAL_RNG, nsamp, m; kwargs...)
 end
 
-function nonparametricbootstrap(rng::AbstractRNG, n::Integer,
+function permutation(rng::AbstractRNG, n::Integer,
                                 morig::GeneralizedLinearMixedModel;
                                 use_threads::Bool=false) where {T}
 
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-resample!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
-    resample!(GLOBAL_RNG, mod, blups, reterms)
+permute!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
+    permute!(GLOBAL_RNG, mod, blups, reterms)
 
 """
-    resample!([rng::AbstractRNG,] mod::LinearMixedModel,
+    permute!([rng::AbstractRNG,] mod::LinearMixedModel,
               blups=ranef(mod), reterms=mod.reterms)
 
-Simulate and install a new response using resampling at the observational and group level.
+Simulate and install a new response via sign-flipped permutation of the residuals
+at the observational and sign-flipping of the conditional modes at group level.
 
-At both levels, resampling is done with replacement. At the observational level,
-this is resampling of the residuals, i.e. comparable to the step in the classical
-nonparametric bootstrap for OLS regression. At the group level, samples are done
-jointly for all  terms ("random intercept and random slopes", conditional modes)
-associated with a particular level of a blocking factor. For example, the
-predicted slope and intercept for a single participant or item are kept together.
-This clumping in the resampling procedure is necessary to preserve the original
-correlation structure of the slopes and intercepts.
-
-In addition to this resampling step, there is also an inflation step. Due to the
-shrinkage associated with the random effects in a mixed model, the variance of the
-conditional modes / BLUPs / random intercepts and slopes is less than the variance
-estimated by the model and displayed in the model summary or via `MixedModels.VarCorr`.
-This shrinkage also impacts the observational level residuals. To compensate for this,
-the resampled residuals and groups are scale-inflated so that their standard deviation
-matches that of the estimates in the original model.
-
-See also [`nonparametricbootstrap`](@ref) and `MixedModels.simulate!`.
+Sign-flipped permutation of the residuals is similar to permuting the
+(fixed-effects) design matrix. Sign-flipping the conditional modes (random effects)
+preserves the correlation structure of the random effects, while also being equivalent to
+permutation via swapped labels for categorical variables.
 
 !!! note
-    This method has serious limitations for singular models because resampling from
-    a distribution with many zeros (e.g. the random effects components with zero variance)
-    will often generate new data with even less variance.
+    This method has serious limitations for singular models because permuting zeros
+
+See also [`permutation`](@ref), [`nonparametricbootstrap`](@ref) and [`resample!`](@ref).
 
 # Reference
-The method implemented here is based on the approach given in Section 3.2 of:
-Carpenter, J.R., Goldstein, H. and Rasbash, J. (2003).
-A novel bootstrap procedure for assessing the relationship between class size and achievement.
-Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
-https://doi.org/10.1111/1467-9876.00415
+ter Braak?
 
 """
-function resample!(rng::AbstractRNG, mod::LinearMixedModel,
+function permute!(rng::AbstractRNG, mod::LinearMixedModel,
                    blups=ranef(mod),
                    reterms=mod.reterms)
     β = coef(mod)
     y = response(mod) # we are now modifying the model
-    res = residuals(mod)
+    copy!(y, residuals(mod))
 
-    sample!(rng, res, y; replace=true)
+    shuffle!(rng, y)
     # inflate these to be on the same scale as the empirical variation instead of the MLE
-    y .*= sdest(mod) / std(y; corrected=false)
+    # y .*= sdest(mod) / std(y; corrected=false)
     # sign flipping
-    # y .*= rand(rng, (-1,1), length(y))
+    y .*= rand(rng, (-1,1), length(y))
 
-    σ = sdest(mod)
+    # σ = sdest(mod)
 
     for (re, trm) in zip(blups, reterms)
         npreds, ngrps = size(re)
-        samp = sample(rng, 1:ngrps, ngrps; replace=true)
+        samp = sample(rng, 1:ngrps, ngrps; replace=false)
 
+        # use a view to avoid copying
         newre = view(re, :, samp)
         # sign flipping
-        # newre *= diagm(rand(rng, (-1,1), ngrps))
+        newre *= diagm(rand(rng, (-1,1), ngrps))
 
         # inflation
-        λmle =  trm.λ * σ                               # L_R in CGR
-        λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
+        #λmle =  trm.λ * σ                               # L_R in CGR
+        #λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
         # no transpose because the RE are transposed relativ to CGR
-        inflation = λmle / λemp
+        #inflation = λmle / λemp
 
         # our RE are actually already scaled, but this method (of unscaledre!)
         # isn't dependent on the scaling (only the RNG methods are)
-        MixedModels.unscaledre!(y, trm, inflation * newre)
+        MixedModels.unscaledre!(y, trm, newre)
     end
 
     # TODO: convert to inplace ops with mul!(y, mod.X, β, one(T), one(T))

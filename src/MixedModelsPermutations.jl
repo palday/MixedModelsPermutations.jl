@@ -17,9 +17,10 @@ import MixedModels: allpars, coefpvalues, issingular, setθ!, tidyβ, tidyσs
 
 export MixedModelPermutation,
        nonparametricbootstrap,
-       resample!
+       permutation
 
 include("mixedmodelpermutation.jl")
 include("nonparametricbootstrap.jl")
+include("permutation.jl")
 
 end

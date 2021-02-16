@@ -5,7 +5,7 @@ using MixedModelsPermutations: resample!
 using StableRNGs
 using Test
 
-const io = IOBuffer()
+isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
