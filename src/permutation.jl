@@ -22,6 +22,14 @@ In this case, threads at the level of the linear algebra may already occupy all
 processors/processor cores. There are plans to provide better support in coordinating
 Julia- and BLAS-level threads in the future.
 
+`blup_method` provides options for how/which group-level effects are passed for permutation.
+The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
+ordinary least squares (OLS) can be used with `olsranef`. There is no shrinkage of the
+group-level estimates with this approach, which means singular estimates can be avoided.
+However, if the design matrix for the random effects is rank deficient (e.g., through the use
+of `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
+See [`olsranef`](@ref) and `MixedModels.ranef` for more information.
+
 !!! note
     The permutation (test) generates samples from H0, from which
     it is possible to compute p-values. The bootstrap typically generates
@@ -55,7 +63,8 @@ function permutation(
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
     β::AbstractVector{T}=coef(morig),
-    residual_method=:signflip
+    residual_method=:signflip,
+    blup_method=ranef,
 ) where {T}
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
@@ -64,7 +73,7 @@ function permutation(
     β_names = (Symbol.(fixefnames(morig))..., )
     rank = length(β_names)
 
-    blups = ranef(morig; uscale=false)
+    blups = blup_method(morig)
     reterms = morig.reterms
 
     # we need arrays of these for in-place operations to work across threads
@@ -82,21 +91,21 @@ function permutation(
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = ReentrantLock()
     samp = replicate(n, use_threads=use_threads) do
-        mod = m_threads[Threads.threadid()]
+        model = m_threads[Threads.threadid()]
 
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        mod = permute!(rng, mod, blups, reterms;
+        model = permute!(rng, model, blups, reterms;
                        β=β, residual_method=residual_method)
         unlock(rnglock)
-        refit!(mod)
+        refit!(model)
         (
-         objective = mod.objective,
-         σ = mod.σ,
-         β = NamedTuple{β_names}(fixef!(βsc, mod)),
-         se = SVector{p,T}(stderror!(βsc, mod)),
-         θ = SVector{k,T}(getθ!(θsc, mod)),
+         objective = model.objective,
+         σ = model.σ,
+         β = NamedTuple{β_names}(fixef!(βsc, model)),
+         se = SVector{p,T}(stderror!(βsc, model)),
+         θ = SVector{k,T}(getθ!(θsc, model)),
         )
     end
     MixedModelPermutation(
@@ -119,20 +128,64 @@ function permutation(rng::AbstractRNG, n::Integer,
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-permute!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms; kwargs...) =
-    permute!(Random.GLOBAL_RNG, mod, blups, reterms; kwargs...)
+"""
+    olsranef(model::LinearMixedModel)
+
+Compute the group-level estimates using ordinary least squares.
+
+This is somewhat similar to the conditional modes / BLUPs computed without shrinkage.
+
+Optionally, instead of using the shrunken random effects from `ranef`, within-group OLS
+estimates can be computed and used instead with [`olsranef`](@ref). There is no shrinkage
+of the group-level estimates with this approach, which means singular estimates can be
+avoided. However,
+
+!!! warning
+    If the design matrix for the random effects is rank deficient (e.g., through the use of
+    `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
+"""
+function olsranef(model::LinearMixedModel{T}) where {T}
+    fixef_res = copy(response(model))
+    # what's not explained by the fixed effects has to be explained by the RE
+    X = model.X
+    β = model.β # (X'X) \ (X'fixef_res)
+    mul!(fixef_res, X, β, one(T), -one(T))
+
+    blups = Vector{Matrix{Float64}}()
+    for trm in model.reterms
+        re = []
+
+        z = trm.z
+        refs = unique(trm.refs)
+        ngrps = length(refs)
+        npreds = length(trm.cnames)
+
+        j = 1
+        for r in refs
+            i = trm.refs .== r
+            X = trm[i, j:(j+npreds-1)]
+            b = (X'X) \ (X'fixef_res[i])
+            push!(re, b)
+            j += npreds
+        end
+
+        push!(blups, hcat(re...))
+    end
+
+    return blups
+end
+
+
+permute!(model::LinearMixedModel, blups=ranef(model), reterms=model.reterms; kwargs...) =
+    permute!(Random.GLOBAL_RNG, model, blups, reterms; kwargs...)
 
 """
-    permute!([rng::AbstractRNG,] mod::LinearMixedModel,
-              blups=ranef(mod), reterms=mod.reterms;
-              β=coef(mod), residual_method=:signflip)
+    permute!([rng::AbstractRNG,] model::LinearMixedModel,
+              blups=ranef(model), reterms=model.reterms;
+              β=coef(model), residual_method=:signflip)
 
 Simulate and install a new response via permutation of the residuals
 at the observational level and sign-flipping of the conditional modes at group level.
-
-Permutation at the level of residuals can be accomplished either via sign
-flipping (`residual_method=:signflip`) or via classical
-permutation/shuffling (`residual_method=:shuffle`).
 
 Generally, permutations are used to test a particular (null) hypothesis. This
 hypothesis is specified via by setting `β` argument to match the hypothesis. For
@@ -143,15 +196,26 @@ julia> hypothesis = coef(model);
 julia> hypothesis[1] = 0.0;
 ```
 
+Permutation at the level of residuals can be accomplished either via sign
+flipping (`residual_method=:signflip`) or via classical
+permutation/shuffling (`residual_method=:shuffle`).
+
 Sign-flipped permutation of the residuals is similar to permuting the
 (fixed-effects) design matrix; shuffling the residuals is the same as permuting the
-(fixed-effects) design matrix. Sign-flipping the conditional modes (random effects)
+(fixed-effects) design matrix. Sign-flipping the random effects
 preserves the correlation structure of the random effects, while also being equivalent to
 permutation via swapped labels for categorical variables.
 
 !!! warning
     This method has serious limitations for singular models because sign-flipping a zero
     is not an effective randomization technique.
+
+Optionally, instead of using the shrunken random effects from `ranef`, within-group OLS
+estimates can be computed and used instead with [`olsranef`](@ref). There is no shrinkage
+of the group-level estimates with this approach, which means singular estimates can be
+avoided. However, if the design matrix for the random effects is rank deficient (e.g.,
+through the use of `MixedModels.fulldummy` or missing cells in the data), then this method
+will fail.
 
 See also [`permutation`](@ref), [`nonparametricbootstrap`](@ref) and [`resample!`](@ref).
 
@@ -172,13 +236,14 @@ Winkler, A. M., Ridgway, G. R., Webster, M. A., Smith, S. M., & Nichols, T. E. (
 Permutation inference for the general linear model. NeuroImage, 92, 381–397.
 https://doi.org/10.1016/j.neuroimage.2014.01.060
 """
-function permute!(rng::AbstractRNG, mod::LinearMixedModel{T},
-                   blups=ranef(mod),
-                   reterms=mod.reterms;
-                   β::AbstractVector{T}=coef(mod),
+function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
+                   blups=ranef(model),
+                   reterms=model.reterms;
+                   β::AbstractVector{T}=coef(model),
                    residual_method=:signflip) where {T}
-    y = response(mod) # we are now modifying the model
-    copy!(y, residuals(mod))
+
+    y = response(model) # we are now modifying the model
+    copy!(y, residuals(model))
 
     if residual_method == :shuffle
         shuffle!(rng, y)
@@ -198,12 +263,12 @@ function permute!(rng::AbstractRNG, mod::LinearMixedModel{T},
         MixedModels.unscaledre!(y, trm, newre)
     end
 
-    mul!(y, mod.X, β, one(T), one(T))
+    mul!(y, model.X, β, one(T), one(T))
 
     # mark model as unfitted
-    mod.optsum.feval = -1
+    model.optsum.feval = -1
 
-    return mod
+    return model
 end
 
 

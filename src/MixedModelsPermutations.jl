@@ -18,6 +18,7 @@ import MixedModels: allpars, coefpvalues, issingular, setθ!, tidyβ, tidyσs
 
 export MixedModelPermutation,
        nonparametricbootstrap,
+       olsranef,
        permutation,
        permutationtest
 
