@@ -131,7 +131,6 @@ Carpenter, J.R., Goldstein, H. and Rasbash, J. (2003).
 A novel bootstrap procedure for assessing the relationship between class size and achievement.
 Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
 https://doi.org/10.1111/1467-9876.00415
-
 """
 function resample!(rng::AbstractRNG, mod::LinearMixedModel,
                    blups=ranef(mod),

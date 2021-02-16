@@ -15,7 +15,7 @@ nonparametricbootstrap
 
 Note that this method is not exported to match `permute!`.
 ```@docs
-MixedModels.resample!
+MixedModelsPermutations.resample!
 ```
 
 ## Permutation Testing
