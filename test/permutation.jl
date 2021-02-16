@@ -53,7 +53,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     @testset "olsranef" begin
         permols = permutation(StableRNG(42),1000, m1; β=H0, blup_method=olsranef)
         @test permols isa MixedModelPermutation
-        @test last(permutationtest(perm, m1, :greater)) ≈ last(permutationtest(permols, m1, :greater)) atol=0.001
+        @test last(permutationtest(perm, m1, :greater)) ≈ last(permutationtest(permols, m1, :greater)) atol=0.01
     end
 
 end
