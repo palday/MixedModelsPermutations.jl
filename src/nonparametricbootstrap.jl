@@ -42,7 +42,7 @@ function nonparametricbootstrap(
 
     blups = ranef(morig; uscale=false)
     reterms = morig.reterms
-
+    yorig = copy(response(morig))
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
@@ -59,7 +59,7 @@ function nonparametricbootstrap(
     rnglock = ReentrantLock()
     samp = replicate(n, use_threads=use_threads) do
         mod = m_threads[Threads.threadid()]
-
+        copy!(morig.y, yorig)
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
@@ -160,6 +160,8 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
 
         # our RE are actually already scaled, but this method (of unscaledre!)
         # isn't dependent on the scaling (only the RNG methods are)
+        # this just multiplies the Z matrices by the BLUPs
+        # and add that to y
         MixedModels.unscaledre!(y, trm, inflation * newre)
     end
 

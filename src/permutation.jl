@@ -92,7 +92,7 @@ function permutation(
 
     blups = blup_method(morig)
     reterms = morig.reterms
-
+    y = copy(response(morig))
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
@@ -113,8 +113,9 @@ function permutation(
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
+        copy!(morig.y, y)
         model = permute!(rng, model, blups, reterms;
-                       β=β, residual_method=residual_method)
+                         β=β, residual_method=residual_method)
         unlock(rnglock)
         refit!(model)
         (
@@ -228,8 +229,15 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
         # sign flipping
         newre = re * diagm(rand(rng, (-1,1), ngrps))
 
-        # our RE are actually already scaled, but this method (of unscaledre!)
-        # isn't dependent on the scaling (only the RNG methods are)
+        # # inflation
+        # λmle =  trm.λ * σ                               # L_R in CGR
+        # λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
+        # # no transpose because the RE are transposed relativ to CGR
+        # inflation = λmle / λemp
+
+
+        # this just multiplies the Z matrices by the BLUPs
+        # and add that to y
         MixedModels.unscaledre!(y, trm, newre)
     end
 
