@@ -36,9 +36,9 @@ function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
     return olsranef(model, fixef_res, Val(method))
 end
 
-function olsranef(model, fixef_res, ::Val{:stratum})
+function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where {T}
 
-    blups = Vector{Matrix{Float64}}()
+    blups = Vector{Matrix{T}}()
     for trm in model.reterms
         re = []
 
@@ -63,18 +63,18 @@ function olsranef(model, fixef_res, ::Val{:stratum})
 end
 
 
-function olsranef(model, fixef_res, ::Val{:simultaneous})
+function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
     X = hcat(model.reterms...)
     flatblups = X'X \ X'fixef_res
 
-    blups = Vector{Matrix{Float64}}()
+    blups = Vector{Matrix{T}}()
 
     offset = 1
     for trm in model.reterms
         chunksize = size(trm, 2)
         ngrps = length(trm.levels)
         npreds = length(trm.cnames)
-        re = Matrix(reshape(view(flatblups, offset:(offset+chunksize-1)),
+        re = Matrix{T}(reshape(view(flatblups, offset:(offset+chunksize-1)),
                                npreds, ngrps))
         offset += chunksize
         push!(blups, re)
