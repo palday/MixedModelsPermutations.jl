@@ -93,7 +93,7 @@ function permutation(
     blups = blup_method(morig)
     resids = residuals(morig)#, blups)
     reterms = morig.reterms
-    scalings = inflation_factor(morig)
+    scalings = inflation_factor(morig, blups, resids)
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]

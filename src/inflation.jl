@@ -1,5 +1,5 @@
 """
-    inflation_factor(m::LinearMixedModel)
+    inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(m)))
 
 Compute how much the standard deviation of the BLUPs/conditional modes and residuals
 needs to be inflated in order to match the (restricted) maximum-likelihood estimate.
@@ -17,14 +17,14 @@ for each of the random-effect strata (blocking variables) and the observation-le
 variability. The factor is on the standard deviation scale (lower Cholesky factor
 in the case of vector-valued random effects).
 """
-function inflation_factor(m::LinearMixedModel)
+function inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(m))
 # FIXME I'm not sure this is correct
 #       the nonparametric bootstrap underestimates variance components
 #       compared to the parametricbootstrap
 
     σ = sdest(m)
-    σres = std(residuals(m); corrected=false)
-    inflation = map(zip(m.reterms, ranef(m))) do (trm, re)
+    σres = std(resids; corrected=false)
+    inflation = map(zip(m.reterms, blups)) do (trm, re)
         # inflation
         λmle =  trm.λ * σ                               # L_R in CGR
         λemp = cholesky(cov(re'; corrected=false)).L    # L_S in CGR
