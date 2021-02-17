@@ -8,3 +8,7 @@ end
 @testset "permutation" begin
     include("permutation.jl")
 end
+
+@testset "ols" begin
+    include("ols.jl")
+end
