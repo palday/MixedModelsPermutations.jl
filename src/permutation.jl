@@ -147,8 +147,8 @@ function permutation(rng::AbstractRNG, n::Integer,
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-permute!(model::LinearMixedModel, blups=ranef(model), reterms=model.reterms; kwargs...) =
-    permute!(Random.GLOBAL_RNG, model, blups, reterms; kwargs...)
+permute!(model::LinearMixedModel, args...; kwargs...) =
+    permute!(Random.GLOBAL_RNG, args...; kwargs...)
 
 """
     permute!([rng::AbstractRNG,] model::LinearMixedModel,
