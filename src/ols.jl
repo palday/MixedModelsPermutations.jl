@@ -31,7 +31,7 @@ function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
     # what's not explained by the fixed effects has to be explained by the RE
     X = model.X
     β = model.β # (X'X) \ (X'fixef_res)
-    mul!(fixef_res, X, β, one(T), -one(T))
+    mul!(fixef_res, X, β, -one(T), one(T))
 
     return olsranef(model, fixef_res, Val(method))
 end
