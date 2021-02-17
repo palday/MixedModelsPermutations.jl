@@ -113,7 +113,8 @@ function permutation(
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        copy!(morig.y, y)
+        # make more efficient
+        refit!(model, y)
         model = permute!(rng, model, blups, reterms;
                          β=β, residual_method=residual_method)
         unlock(rnglock)

@@ -53,6 +53,8 @@ function nonparametricbootstrap(
     blups = blup_method(morig)
     reterms = morig.reterms
     yorig = copy(response(morig))
+    θorig = morig.θ
+    scalings = inflation_factor(morig)
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
@@ -69,11 +71,14 @@ function nonparametricbootstrap(
     rnglock = ReentrantLock()
     samp = replicate(n; use_threads=use_threads) do
         mod = m_threads[Threads.threadid()]
-        copy!(morig.y, yorig)
+        #copy!(mod.y, yorig)
+        #updateL!(setθ!(mod, θorig))
+        # XXX
+        refit!(mod, yorig)
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        mod = resample!(rng, mod, blups, reterms)
+        mod = resample!(rng, mod, blups, reterms, scalings)
         unlock(rnglock)
         refit!(mod)
         (
@@ -146,28 +151,21 @@ https://doi.org/10.1111/1467-9876.00415
 """
 function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
                    blups=ranef(mod),
-                   reterms=mod.reterms) where {T}
+                   reterms=mod.reterms,
+                   scalings=inflation_factor(mod)) where {T}
     β = coef(mod)
     y = response(mod) # we are now modifying the model
     res = residuals(mod, blups)
 
     sample!(rng, res, y; replace=true)
     # inflate these to be on the same scale as the empirical variation instead of the MLE
-    y .*= sdest(mod) / std(y; corrected=false)
+    y .*= first(scalings)
 
-    σ = sdest(mod)
-    for (re, trm) in zip(blups, reterms)
+    for (inflation, re, trm) in zip(scalings[2:end], blups, reterms)
         npreds, ngrps = size(re)
         samp = sample(rng, 1:ngrps, ngrps; replace=true)
 
         newre = view(re, :, samp)
-
-        # inflation
-        λmle =  trm.λ * σ                               # L_R in CGR
-        λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
-        # no transpose because the RE are transposed relativ to CGR
-        inflation = λmle / λemp
-
         # our RE are actually already scaled, but this method (of unscaledre!)
         # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
@@ -175,11 +173,24 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
         MixedModels.unscaledre!(y, trm, inflation * newre)
     end
 
-    # TODO: convert to inplace ops with mul!(y, mod.X, β, one(T), one(T))
     mul!(y, mod.X, β, one(T), one(T))
 
     # mark model as unfitted
     mod.optsum.feval = -1
 
     return mod
+end
+
+function inflation_factor(m::LinearMixedModel)
+    σ = sdest(m)
+    σres = std(residuals(m); corrected=false)
+    inflation = map(zip(m.reterms, ranef(m))) do (trm, re)
+        # inflation
+        λmle =  trm.λ * σ                               # L_R in CGR
+        λemp = cholesky(cov(re'; corrected=false)).L    # L_S in CGR
+        # no transpose because the RE are transposed relativ to CGR
+        λmle / λemp
+    end
+
+    return [σ / σres; inflation]
 end
