@@ -51,8 +51,10 @@ function nonparametricbootstrap(
     rank = length(β_names)
 
     blups = blup_method(morig)
+    resids = residuals(morig, blups)
     reterms = morig.reterms
     yorig = copy(response(morig))
+    βorig = morig.β
     θorig = morig.θ
     scalings = inflation_factor(morig)
     # we need arrays of these for in-place operations to work across threads
@@ -71,14 +73,10 @@ function nonparametricbootstrap(
     rnglock = ReentrantLock()
     samp = replicate(n; use_threads=use_threads) do
         mod = m_threads[Threads.threadid()]
-        #copy!(mod.y, yorig)
-        #updateL!(setθ!(mod, θorig))
-        # XXX
-        refit!(mod, yorig)
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        mod = resample!(rng, mod, blups, reterms, scalings)
+        mod = resample!(rng, mod, βorig, blups, resids; scalings=scalings)
         unlock(rnglock)
         refit!(mod)
         (
@@ -114,7 +112,8 @@ resample!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
 
 """
     resample!([rng::AbstractRNG,] mod::LinearMixedModel,
-              blups=ranef(mod), reterms=mod.reterms)
+              blups=ranef(mod), resids=residuals(model,blups);
+              scalings=inflation_factor(mod))
 
 Simulate and install a new response using resampling at the observational and group level.
 
@@ -133,7 +132,8 @@ conditional modes / BLUPs / random intercepts and slopes is less than the varian
 estimated by the model and displayed in the model summary or via `MixedModels.VarCorr`.
 This shrinkage also impacts the observational level residuals. To compensate for this,
 the resampled residuals and groups are scale-inflated so that their standard deviation
-matches that of the estimates in the original model.
+matches that of the estimates in the original model. The default inflation factor is
+computed using [`inflation_factor`](@refs) on the model.
 
 See also [`nonparametricbootstrap`](@ref) and `MixedModels.simulate!`.
 
@@ -150,16 +150,17 @@ Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431
 https://doi.org/10.1111/1467-9876.00415
 """
 function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
+                   β=coef(mod),
                    blups=ranef(mod),
-                   reterms=mod.reterms,
+                   resids=residuals(model,blups);
                    scalings=inflation_factor(mod)) where {T}
-    β = coef(mod)
-    y = response(mod) # we are now modifying the model
-    res = residuals(mod, blups)
 
-    sample!(rng, res, y; replace=true)
+    reterms = mod.reterms
+    y = response(mod) # we are now modifying the model
+
+    sample!(rng, resids, y; replace=true)
     # inflate these to be on the same scale as the empirical variation instead of the MLE
-    y .*= first(scalings)
+    y .*= last(scalings)
 
     for (inflation, re, trm) in zip(scalings[2:end], blups, reterms)
         npreds, ngrps = size(re)
@@ -181,6 +182,26 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
     return mod
 end
 
+"""
+    inflation_factor(m::LinearMixedModel)
+
+Compute how much the standard deviation of the BLUPs/conditional modes and residuals
+needs to be inflated in order to match the (restricted) maximum-likelihood estimate.
+
+Due to the shrinkage associated with the random effects in a mixed model, the
+variance of the conditional modes / BLUPs / random intercepts and slopes is less
+than the variance estimated by the model and displayed in the model summary or
+via `MixedModels.VarCorr`. This shrinkage also impacts the observational level
+residuals. To compensate for this, the resampled residuals and groups need to be
+scale-inflated so that their standard deviation matches that of the estimates in
+the original model.
+
+The factor for scale inflation is returned as a `Vector` of inflation factors
+for each of the random-effect strata (blocking variables) and the observation-level
+variability. The factor is on the standard deviation scale (lower Cholesky factor
+in the case of vector-valued random effects).
+"""
+
 function inflation_factor(m::LinearMixedModel)
     σ = sdest(m)
     σres = std(residuals(m); corrected=false)
@@ -189,8 +210,8 @@ function inflation_factor(m::LinearMixedModel)
         λmle =  trm.λ * σ                               # L_R in CGR
         λemp = cholesky(cov(re'; corrected=false)).L    # L_S in CGR
         # no transpose because the RE are transposed relativ to CGR
-        λmle / λemp
+        λmle \ λemp
     end
 
-    return [σ / σres; inflation]
+    return [inflation; σ / σres]
 end
