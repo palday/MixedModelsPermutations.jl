@@ -5,7 +5,10 @@ using Statistics
 
 """
     permutation([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
-                           use_threads=false)
+                use_threads::Bool=false,
+                β=zeros(length(coef(morig))),
+                residual_method=:signflip,
+                blup_method=ranef)
 
 Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `MixedModelBootstrap`.
 
@@ -22,6 +25,10 @@ In this case, threads at the level of the linear algebra may already occupy all
 processors/processor cores. There are plans to provide better support in coordinating
 Julia- and BLAS-level threads in the future.
 
+Permutation at the level of residuals can be accomplished either via sign
+flipping (`residual_method=:signflip`) or via classical
+permutation/shuffling (`residual_method=:shuffle`).
+
 `blup_method` provides options for how/which group-level effects are passed for permutation.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
 ordinary least squares (OLS) can be used with `olsranef`. There is no shrinkage of the
@@ -30,6 +37,14 @@ However, if the design matrix for the random effects is rank deficient (e.g., th
 of `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
 See [`olsranef`](@ref) and `MixedModels.ranef` for more information.
 
+Generally, permutations are used to test a particular (null) hypothesis. This
+hypothesis is specified via by setting `β` argument to match the hypothesis. For
+example, the null hypothesis that the first coefficient is zero would expressed as
+
+```julialang
+julia> hypothesis = coef(model);
+julia> hypothesis[1] = 0.0;
+```
 !!! note
     The permutation (test) generates samples from H0, from which
     it is possible to compute p-values. The bootstrap typically generates
