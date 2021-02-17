@@ -149,7 +149,7 @@ function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
                    reterms=mod.reterms) where {T}
     β = coef(mod)
     y = response(mod) # we are now modifying the model
-    res = residuals(mod)
+    res = residuals(mod, blups)
 
     sample!(rng, res, y; replace=true)
     # inflate these to be on the same scale as the empirical variation instead of the MLE

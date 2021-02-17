@@ -213,8 +213,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
                    residual_method=:signflip) where {T}
 
     y = response(model) # we are now modifying the model
-    # XXX should we use a residuals method that uses the specified BLUPs instead of the fitted ones?
-    copy!(y, residuals(model))
+    copy!(y, residuals(model, blups))
 
     if residual_method == :shuffle
         shuffle!(rng, y)
