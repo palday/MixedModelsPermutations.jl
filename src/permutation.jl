@@ -190,6 +190,15 @@ avoided. However, if the design matrix for the random effects is rank deficient 
 through the use of `MixedModels.fulldummy` or missing cells in the data), then this method
 will fail.
 
+In addition to the permutation step, there is also an inflation step. Due to the
+shrinkage associated with the random effects in a mixed model, the variance of the
+conditional modes / BLUPs / random intercepts and slopes is less than the variance
+estimated by the model and displayed in the model summary or via `MixedModels.VarCorr`.
+This shrinkage also impacts the observational level residuals. To compensate for this,
+the resampled residuals and groups are scale-inflated so that their standard deviation
+matches that of the estimates in the original model. The default inflation factor is
+computed using [`inflation_factor`](@ref) on the model.
+
 See also [`permutation`](@ref), [`nonparametricbootstrap`](@ref) and [`resample!`](@ref).
 
 The functions `coef` and `coefnames` from `MixedModels` may also be useful.

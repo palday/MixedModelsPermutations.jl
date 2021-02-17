@@ -24,6 +24,7 @@ export MixedModelPermutation,
        residuals
 
 include("mixedmodelpermutation.jl")
+include("inflation.jl")
 include("nonparametricbootstrap.jl")
 include("permutation.jl")
 include("ols.jl")

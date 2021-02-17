@@ -35,3 +35,7 @@ MixedModelsPermutations.permute!
 ```@docs
 permutationtest
 ```
+## Scale Inflation
+```@docs
+MixedModelsPermutations.inflation_factor
+```
