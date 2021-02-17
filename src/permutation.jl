@@ -62,7 +62,7 @@ function permutation(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
-    β::AbstractVector{T}=coef(morig),
+    β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_method=:signflip,
     blup_method=ranef,
 ) where {T}
@@ -182,7 +182,7 @@ permute!(model::LinearMixedModel, blups=ranef(model), reterms=model.reterms; kwa
 """
     permute!([rng::AbstractRNG,] model::LinearMixedModel,
               blups=ranef(model), reterms=model.reterms;
-              β=coef(model), residual_method=:signflip)
+              β=zeros(length(coef(model))), residual_method=:signflip)
 
 Simulate and install a new response via permutation of the residuals
 at the observational level and sign-flipping of the conditional modes at group level.
@@ -239,7 +239,7 @@ https://doi.org/10.1016/j.neuroimage.2014.01.060
 function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
                    blups=ranef(model),
                    reterms=model.reterms;
-                   β::AbstractVector{T}=coef(model),
+                   β::AbstractVector{T}=zeros(T, length(coef(model))),
                    residual_method=:signflip) where {T}
 
     y = response(model) # we are now modifying the model
