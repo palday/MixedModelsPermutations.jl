@@ -250,7 +250,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
         # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        MixedModels.unscaledre!(y, trm, inflation * newre)
+        MixedModels.unscaledre!(y, trm, lmul!(inflation, newre))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 
