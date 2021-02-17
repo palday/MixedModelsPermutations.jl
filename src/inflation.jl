@@ -18,6 +18,10 @@ variability. The factor is on the standard deviation scale (lower Cholesky facto
 in the case of vector-valued random effects).
 """
 function inflation_factor(m::LinearMixedModel)
+# FIXME I'm not sure this is correct
+#       the nonparametric bootstrap underestimates variance components
+#       compared to the parametricbootstrap
+
     σ = sdest(m)
     σres = std(residuals(m); corrected=false)
     inflation = map(zip(m.reterms, ranef(m))) do (trm, re)

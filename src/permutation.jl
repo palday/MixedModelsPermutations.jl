@@ -277,6 +277,9 @@ See also [`permutation`](@ref).
 
 """
 function permutationtest(perm::MixedModelPermutation, model, type::Symbol=:twosided)
+    @warn """This method is known not to be fully correct.
+             The interface for this functionality will likely change drastically in the near future."""
+
     if type == :greater || type  == :twosided
         comp = >
     elseif type == :lesser
