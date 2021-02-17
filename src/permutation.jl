@@ -91,8 +91,9 @@ function permutation(
     rank = length(β_names)
 
     blups = blup_method(morig)
+    resids = residuals(morig, blups)
     reterms = morig.reterms
-    y = copy(response(morig))
+    scalings = inflation_factor(morig)
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
@@ -113,10 +114,8 @@ function permutation(
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        # make more efficient
-        refit!(model, y)
-        model = permute!(rng, model, blups, reterms;
-                         β=β, residual_method=residual_method)
+        model = permute!(rng, model; β=β, blups=blups, resids=resids,
+                         residual_method=residual_method, scalings=scalings)
         unlock(rnglock)
         refit!(model)
         (
@@ -151,9 +150,12 @@ permute!(model::LinearMixedModel, args...; kwargs...) =
     permute!(Random.GLOBAL_RNG, args...; kwargs...)
 
 """
-    permute!([rng::AbstractRNG,] model::LinearMixedModel,
-              blups=ranef(model), reterms=model.reterms;
-              β=zeros(length(coef(model))), residual_method=:signflip)
+    permute!([rng::AbstractRNG,] model::LinearMixedModel;
+             β=zeros(length(coef(model))),
+             blups=ranef(model),
+             resids=residuals(model,blups),
+             residual_method=:signflip,
+             scalings=inflation_factor(model))
 
 Simulate and install a new response via permutation of the residuals
 at the observational level and sign-flipping of the conditional modes at group level.
@@ -207,14 +209,19 @@ Winkler, A. M., Ridgway, G. R., Webster, M. A., Smith, S. M., & Nichols, T. E. (
 Permutation inference for the general linear model. NeuroImage, 92, 381–397.
 https://doi.org/10.1016/j.neuroimage.2014.01.060
 """
-function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
-                   blups=ranef(model),
-                   reterms=model.reterms;
-                   β::AbstractVector{T}=zeros(T, length(coef(model))),
-                   residual_method=:signflip) where {T}
+function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
+                  β::AbstractVector{T}=zeros(T, length(coef(model))),
+                  blups=ranef(model),
+                  resids=residuals(model,blups),
+                  residual_method=:signflip,
+                  scalings=inflation_factor(model)) where {T}
 
+    reterms = model.reterms
     y = response(model) # we are now modifying the model
-    copy!(y, residuals(model, blups))
+    copy!(y, resids)
+
+    # inflate these to be on the same scale as the empirical variation instead of the MLE
+    y .*= last(scalings)
 
     if residual_method == :shuffle
         shuffle!(rng, y)
@@ -224,21 +231,17 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
         throw(ArgumentError("Invalid: residual permutation method: $(residual_method)"))
     end
 
-    for (re, trm) in zip(blups, reterms)
+    for (inflation, re, trm) in zip(scalings, blups, reterms)
         npreds, ngrps = size(re)
         # sign flipping
         newre = re * diagm(rand(rng, (-1,1), ngrps))
 
-        # # inflation
-        # λmle =  trm.λ * σ                               # L_R in CGR
-        # λemp = cholesky(cov(newre'; corrected=false)).L # L_S in CGR
-        # # no transpose because the RE are transposed relativ to CGR
-        # inflation = λmle / λemp
-
-
+        # our RE are actually already scaled, but this method (of unscaledre!)
+        # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        MixedModels.unscaledre!(y, trm, newre)
+        MixedModels.unscaledre!(y, trm, inflation * newre)
+        # XXX inflation is resampling invariant -- should we move it out?
     end
 
     mul!(y, model.X, β, one(T), one(T))
