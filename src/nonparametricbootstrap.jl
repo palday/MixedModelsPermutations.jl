@@ -17,6 +17,15 @@ In this case, threads at the level of the linear algebra may already occupy all
 processors/processor cores. There are plans to provide better support in coordinating
 Julia- and BLAS-level threads in the future.
 
+
+`blup_method` provides options for how/which group-level effects are passed for resampling.
+The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
+ordinary least squares (OLS) can be used with `olsranef`. There is no shrinkage of the
+group-level estimates with this approach, which means singular estimates can be avoided.
+However, if the design matrix for the random effects is rank deficient (e.g., through the use
+of `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
+See [`olsranef`](@ref) and `MixedModels.ranef` for more information.
+
 # Method
 
 The method implemented here is based on the approach given in Section 3.2 of:
@@ -30,6 +39,7 @@ function nonparametricbootstrap(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    blup_method=ranef,
 ) where {T}
     # XXX should we allow specifying betas and blups?
     #     if so, should we use residuals computed based on those or the observed ones?
@@ -40,7 +50,7 @@ function nonparametricbootstrap(
     β_names = (Symbol.(fixefnames(morig))..., )
     rank = length(β_names)
 
-    blups = ranef(morig; uscale=false)
+    blups = blup_method(morig)
     reterms = morig.reterms
     yorig = copy(response(morig))
     # we need arrays of these for in-place operations to work across threads
@@ -57,7 +67,7 @@ function nonparametricbootstrap(
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = ReentrantLock()
-    samp = replicate(n, use_threads=use_threads) do
+    samp = replicate(n; use_threads=use_threads) do
         mod = m_threads[Threads.threadid()]
         copy!(morig.y, yorig)
         local βsc = βsc_threads[Threads.threadid()]

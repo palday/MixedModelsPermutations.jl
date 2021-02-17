@@ -107,7 +107,7 @@ function permutation(
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = ReentrantLock()
-    samp = replicate(n, use_threads=use_threads) do
+    samp = replicate(n; use_threads=use_threads) do
         model = m_threads[Threads.threadid()]
 
         local βsc = βsc_threads[Threads.threadid()]
