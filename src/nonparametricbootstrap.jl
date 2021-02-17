@@ -51,7 +51,7 @@ function nonparametricbootstrap(
     rank = length(β_names)
 
     blups = blup_method(morig)
-    resids = residuals(morig, blups)
+    resids = residuals(morig)#, blups)
     reterms = morig.reterms
     scalings = inflation_factor(morig)
     # we need arrays of these for in-place operations to work across threads
@@ -93,8 +93,8 @@ function nonparametricbootstrap(
     )
 end
 
-function nonparametricbootstrap(nsamp::Integer, m::LinearMixedModel; kwargs...)
-    return nonparametricbootstrap(Random.GLOBAL_RNG, nsamp, m; kwargs...)
+function nonparametricbootstrap(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)
+    return nonparametricbootstrap(Random.GLOBAL_RNG, nsamp, m, args...; kwargs...)
 end
 
 function nonparametricbootstrap(rng::AbstractRNG, n::Integer,

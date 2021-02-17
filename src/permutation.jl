@@ -91,7 +91,7 @@ function permutation(
     rank = length(β_names)
 
     blups = blup_method(morig)
-    resids = residuals(morig, blups)
+    resids = residuals(morig)#, blups)
     reterms = morig.reterms
     scalings = inflation_factor(morig)
     # we need arrays of these for in-place operations to work across threads
@@ -135,8 +135,8 @@ function permutation(
     )
 end
 
-function permutation(nsamp::Integer, m::LinearMixedModel; kwargs...)
-    return permutation(Random.GLOBAL_RNG, nsamp, m; kwargs...)
+function permutation(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)
+    return permutation(Random.GLOBAL_RNG, nsamp, m, args...; kwargs...)
 end
 
 function permutation(rng::AbstractRNG, n::Integer,
