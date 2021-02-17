@@ -31,6 +31,8 @@ function nonparametricbootstrap(
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
 ) where {T}
+    # XXX should we allow specifying betas and blups?
+    #     if so, should we use residuals computed based on those or the observed ones?
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
     m = deepcopy(morig)

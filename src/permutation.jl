@@ -81,6 +81,8 @@ function permutation(
     residual_method=:signflip,
     blup_method=ranef,
 ) where {T}
+    # XXX instead of straight zeros,
+    #     should we use 1-0s for intercept only?
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
     m = deepcopy(morig)
@@ -258,6 +260,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
                    residual_method=:signflip) where {T}
 
     y = response(model) # we are now modifying the model
+    # XXX should we use a residuals method that uses the specified BLUPs instead of the fitted ones?
     copy!(y, residuals(model))
 
     if residual_method == :shuffle
