@@ -1,6 +1,6 @@
 """
     nonparametricbootstrap([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
-                           use_threads=false)
+                           use_threads=false, blup_method=ranef, β=coef(morig))
 
 Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `MixedModelBootstrap`.
 
@@ -16,7 +16,6 @@ decrease peformance if multithreaded linear algebra (BLAS) routines are availabl
 In this case, threads at the level of the linear algebra may already occupy all
 processors/processor cores. There are plans to provide better support in coordinating
 Julia- and BLAS-level threads in the future.
-
 
 `blup_method` provides options for how/which group-level effects are passed for resampling.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
@@ -40,6 +39,7 @@ function nonparametricbootstrap(
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
     blup_method=ranef,
+    β=coef(morig),
 ) where {T}
     # XXX should we allow specifying betas and blups?
     #     if so, should we use residuals computed based on those or the observed ones?
@@ -53,9 +53,6 @@ function nonparametricbootstrap(
     blups = blup_method(morig)
     resids = residuals(morig, blups)
     reterms = morig.reterms
-    yorig = copy(response(morig))
-    βorig = morig.β
-    θorig = morig.θ
     scalings = inflation_factor(morig)
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
@@ -76,7 +73,7 @@ function nonparametricbootstrap(
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        mod = resample!(rng, mod, βorig, blups, resids; scalings=scalings)
+        mod = resample!(rng, mod; β=β, blups=blups, resids=resids, scalings=scalings)
         unlock(rnglock)
         refit!(mod)
         (
@@ -107,13 +104,13 @@ function nonparametricbootstrap(rng::AbstractRNG, n::Integer,
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-resample!(mod::LinearMixedModel, blups=ranef(mod), reterms=mod.reterms) =
-    resample!(Random.GLOBAL_RNG, mod, blups, reterms)
+resample!(model::LinearMixedModel, args...; kwargs...) =
+    resample!(Random.GLOBAL_RNG, model, args...; kwargs...)
 
 """
-    resample!([rng::AbstractRNG,] mod::LinearMixedModel,
-              blups=ranef(mod), resids=residuals(model,blups);
-              scalings=inflation_factor(mod))
+    resample!([rng::AbstractRNG,] model::LinearMixedModel;
+              β=coef(model), blups=ranef(model), resids=residuals(model,blups)
+              scalings=inflation_factor(model))
 
 Simulate and install a new response using resampling at the observational and group level.
 
@@ -149,37 +146,41 @@ A novel bootstrap procedure for assessing the relationship between class size an
 Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
 https://doi.org/10.1111/1467-9876.00415
 """
-function resample!(rng::AbstractRNG, mod::LinearMixedModel{T},
-                   β=coef(mod),
-                   blups=ranef(mod),
-                   resids=residuals(model,blups);
-                   scalings=inflation_factor(mod)) where {T}
+function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
+                   β=coef(model),
+                   blups=ranef(model),
+                   resids=residuals(model,blups),
+                   scalings=inflation_factor(model)) where {T}
 
-    reterms = mod.reterms
-    y = response(mod) # we are now modifying the model
+    reterms = model.reterms
+    y = response(model) # we are now modifying the model
 
-    sample!(rng, resids, y; replace=true)
     # inflate these to be on the same scale as the empirical variation instead of the MLE
     y .*= last(scalings)
 
+    # sampling with replacement
+    sample!(rng, resids, y; replace=true)
+
     for (inflation, re, trm) in zip(scalings[2:end], blups, reterms)
         npreds, ngrps = size(re)
+        # sampling with replacement
         samp = sample(rng, 1:ngrps, ngrps; replace=true)
-
         newre = view(re, :, samp)
+
         # our RE are actually already scaled, but this method (of unscaledre!)
         # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
         MixedModels.unscaledre!(y, trm, inflation * newre)
+        # XXX inflation is resampling invariant -- should we move it out?
     end
 
-    mul!(y, mod.X, β, one(T), one(T))
+    mul!(y, model.X, β, one(T), one(T))
 
     # mark model as unfitted
-    mod.optsum.feval = -1
+    model.optsum.feval = -1
 
-    return mod
+    return model
 end
 
 """
