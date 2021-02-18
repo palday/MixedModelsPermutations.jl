@@ -1,8 +1,11 @@
 
 #------------ setup parallel
 using Distributed
+using ProgressMeter
 using SharedArrays
-addprocs(30,exeflags="--project")
+addprocs(10,exeflags="--project",enable_threaded_blas = true)
+#@everywhere using BLAS
+#@everywhere BLAS.set_num_threads(4)
 @everywhere using Pkg
 @everywhere Pkg.activate(".")
 
@@ -17,10 +20,11 @@ addprocs(30,exeflags="--project")
     refit!(simMod)
     H0 = coef(simMod)
     H0[2] = 0.0 
-
-    perm = permutation(MersenneTwister(k),nPerm,simMod,use_threads=false;β=H0); 
-
-    return values(permutationtest(perm,simMod))
+    #H0[1] = 0.0
+    perm = permutation(MersenneTwister(k+1),nPerm,simMod,use_threads=false;β=H0); 
+    p_β = values(permutationtest(perm,simMod;statistic=:β ))
+    p_z = values(permutationtest(perm,simMod;statistic=:z ))
+    return (p_β,p_z)
     
 
 end
@@ -43,7 +47,7 @@ dat = simdat_crossed(15, 30,
 
 #    f1 = @formula dv ~ 1 + age * condition  + (1+condition|item) + (1+condition|subj);
 f1 = @formula dv ~ 1 + condition  + (1+condition|item) + (1+condition|subj);
-mres = fit(MixedModel, f1, dat)
+mres = MixedModels.fit(MixedModel, f1, dat)
 
 
 rngseed = 1
@@ -56,10 +60,13 @@ rngseed = 1
 # ---------------- run jobs
 
 
-nPerm = 100
-nRep = 100
-permResult = SharedArray{Float64}(nRep,length(β))
+nPerm = 500
+nRep = 200
+β_permResult = SharedArray{Float64}(nRep,length(β))
+z_permResult = SharedArray{Float64}(nRep,length(β))
 
-a = @distributed for k =1:nRep
-    permResult[k,:] .= run_perm(mres,k,nPerm,β,σ,θ)
+@showprogress 0.5 @distributed for k =1:nRep
+    res = run_perm(mres,k,nPerm,β,σ,θ)
+    β_permResult[k,:] .= res[1]
+    z_permResult[k,:] .= res[2]
 end

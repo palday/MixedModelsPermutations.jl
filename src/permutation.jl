@@ -275,33 +275,54 @@ The `type` parameter specifies use of a two-sided test (`:twosided`) or the dire
 
 See also [`permutation`](@ref).
 
+To account for finite permutations, we implemented the conservative method from Phipson & Smyth 2010:
+ Permutation P-values Should Never Be Zero:Calculating Exact P-values When Permutations Are Randomly Drawn
+ http://www.statsci.org/webguide/smyth/pubs/permp.pdf 
+
 """
-function permutationtest(perm::MixedModelPermutation, model, type::Symbol=:twosided)
+function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosided,statistic=:z)
     @warn """This method is known not to be fully correct.
              The interface for this functionality will likely change drastically in the near future."""
 
     if type == :greater || type  == :twosided
-        comp = >
+        comp = >=
     elseif type == :lesser
-        comp = <
+        comp = <=
     else
         throw(ArgumentError("Comparison type $(type) unsupported"))
     end
+    if statistic == :z
+        x = coeftable(model)
+        ests = Dict(Symbol(k) => v for (k,v) in zip(coefnames(model), x.cols[x.teststatcol]))
+    elseif statistic == :β
+        ests = Dict(Symbol(k) => v for (k,v) in zip(coefnames(model), coef(model)))
+    else
+        error("statistic not implemented yet")
+    end
 
-    ests = Dict(Symbol(k) => v for (k,v) in zip(coefnames(model), coef(model)))
-    perms = columntable(perm.β)
+    perms = columntable(perm.coefpvalues)
 
     dd = Dict{Symbol, Vector}()
 
     for k in Symbol.(coefnames(model))
-        dd[k] = perms.β[perms.coefname .== k]
-        if type == :twosided
-              μ = mean(dd[k])
-              dd[k] .= abs.(dd[k] .- μ)
-              ests[k] = abs(ests[k].- μ)
-        end
-    end
-    results = (; (k => mean(comp(ests[k]), v) for (k,v) in dd)...)
+        dd[k] = perms[statistic][perms.coefname .== k]
 
+        
+        push!(dd[k],ests[k]) # simplest approximation to ensure p is never 0 (impossible for permutation test)
+        if type == :twosided
+              dd[k]  .= abs.(dd[k])
+              ests[k] = abs(ests[k])
+        end
+        
+    end
+
+    # short way to calculate: 
+    # b = sum.(abs.(permDist).>=abs.(testValue)); (twosided)
+    # Includes the conservative correction for approximate permutation tests
+    # p_t = (b+1)/(nperm+1); 
+
+    # (with comp being <=) Note that sum(<=(ests),v) does the same as  sum(v .<=ests) (thus "reversed" arguments in the first bracket)
+    results = (; (k => (1+sum(comp(ests[k]),v))/(1+length(v)) for (k,v) in dd)...)
+    
     return results
 end
