@@ -280,7 +280,7 @@ To account for finite permutations, we implemented the conservative method from 
  http://www.statsci.org/webguide/smyth/pubs/permp.pdf 
 
 """
-function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosided,statistic=:z)
+function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosided,β::AbstractVector=zeros(length(coef(model))), statistic=:z)
     @warn """This method is known not to be fully correct.
              The interface for this functionality will likely change drastically in the near future."""
 
@@ -304,15 +304,24 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
 
     dd = Dict{Symbol, Vector}()
 
-    for k in Symbol.(coefnames(model))
+    for (ix,k) in enumerate(Symbol.(coefnames(model)))
         dd[k] = perms[statistic][perms.coefname .== k]
 
         
         push!(dd[k],ests[k]) # simplest approximation to ensure p is never 0 (impossible for permutation test)
         if type == :twosided
+            # in case of testing the betas, H0 might be not β==0, therefore we have to remove it here first before we can abs
+            # the "z's" are already symmetric around 0 regardless of hypothesis.
+            if statistic == :β
+                println(β[ix])
+                dd[k]  .= dd[k]  .- β[ix]
+                ests[k] = ests[k] - β[ix]
+            end
+
               dd[k]  .= abs.(dd[k])
               ests[k] = abs(ests[k])
         end
+ 
         
     end
 
