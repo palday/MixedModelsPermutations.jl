@@ -27,6 +27,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     df = combine(groupby(DataFrame(perm.allpars), [:type, :group, :names]),
                 :value => shortestcovint => :interval)
 
+    # our original slope should lie well outside of the null distribution
     let days = filter(df) do row
             return row.type == "β" && row.names == "days"
         end
@@ -35,7 +36,16 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
         @test coef(m1)[2] > upper
         @test coef(m1)[2] > -lower
+    end
 
+    # our original intercept should lie within the range of
+    # the intercepts generated via permutation
+    let est = filter(df) do row
+            return row.type == "β" && row.names == "(Intercept)"
+        end
+
+        lower, upper = only(est.interval)
+        @test lower < first(H0) < upper
     end
 
     @testset "permutationtest" begin
@@ -45,8 +55,10 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
                       permutationtest(perm, m1, :greater))) .== 1)
 
         # we should have a p-value near 1 since our null distribution
-        # we generated from value being tested...
+        # was generated from value being tested...
         @test first(permutationtest(perm, m1)) > 0.95
+        # we should have a p-value near 0 since this effect is clear
+        @test last(permutationtest(perm, m1)) <= 1 / 1000
         @test_throws ArgumentError permutationtest(perm, m1, :bad)
     end
 
@@ -54,6 +66,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
         permols = permutation(StableRNG(42),1000, m1; β=H0, blup_method=olsranef)
         @test permols isa MixedModelPermutation
         @test last(permutationtest(perm, m1, :greater)) ≈ last(permutationtest(permols, m1, :greater)) atol=0.01
+        @test last(permutationtest(perm, m1, :lesser)) ≈ last(permutationtest(permols, m1, :lesser)) atol=0.01
     end
 
 end

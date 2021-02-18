@@ -17,10 +17,15 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     non = nonparametricbootstrap(StableRNG(42),1000, m1)
     @test non isa MixedModelBootstrap
 
-    df = combine(groupby(DataFrame(non.allpars), [:type, :group, :names]),
-                :value => shortestcovint => :interval)
+    nondf = combine(groupby(DataFrame(non.allpars), [:type, :group, :names]),
+                    :value => shortestcovint => :interval)
 
-    let rho = filter(:type => ==("ρ"), df)
+    # when scale inflation is correct, par and non should line up very closely.
+    par = parametricbootstrap(StableRNG(42),1000, m1);
+    pardf = combine(groupby(DataFrame(par.allpars), [:type, :group, :names]),
+                    :value => shortestcovint => :interval)
+
+    let rho = filter(:type => ==("ρ"), nondf)
         violations = mapreduce(+, rho[:, :interval]) do (a,b)
             return !(-1 <= a <= b <= +1)
         end
@@ -28,14 +33,14 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
         @test violations == 0
     end
 
-    let beta = filter(:type => ==("β"), df)
+    let beta = filter(:type => ==("β"), nondf)
         violations = mapreduce(+, zip(fixef(m1), beta[:, :interval])) do (b, (lower,upper))
             return !(lower <= b <= upper)
         end
         @test violations == 0
     end
 
-    let sigma = filter(:type => ==("σ"), df)
+    let sigma = filter(:type => ==("σ"), nondf)
         sigs =[ MixedModels.σs(m1).subj...; m1.σ ]
 
         violations = mapreduce(+, zip(sigs, sigma[:, :interval])) do (b, (lower,upper))
