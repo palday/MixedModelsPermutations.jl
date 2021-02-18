@@ -5,7 +5,10 @@ using Statistics
 
 """
     permutation([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
-                           use_threads=false)
+                use_threads::Bool=false,
+                β=zeros(length(coef(morig))),
+                residual_method=:signflip,
+                blup_method=ranef)
 
 Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `MixedModelBootstrap`.
 
@@ -22,6 +25,10 @@ In this case, threads at the level of the linear algebra may already occupy all
 processors/processor cores. There are plans to provide better support in coordinating
 Julia- and BLAS-level threads in the future.
 
+Permutation at the level of residuals can be accomplished either via sign
+flipping (`residual_method=:signflip`) or via classical
+permutation/shuffling (`residual_method=:shuffle`).
+
 `blup_method` provides options for how/which group-level effects are passed for permutation.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
 ordinary least squares (OLS) can be used with `olsranef`. There is no shrinkage of the
@@ -30,6 +37,14 @@ However, if the design matrix for the random effects is rank deficient (e.g., th
 of `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
 See [`olsranef`](@ref) and `MixedModels.ranef` for more information.
 
+Generally, permutations are used to test a particular (null) hypothesis. This
+hypothesis is specified via by setting `β` argument to match the hypothesis. For
+example, the null hypothesis that the first coefficient is zero would expressed as
+
+```julialang
+julia> hypothesis = coef(model);
+julia> hypothesis[1] = 0.0;
+```
 !!! note
     The permutation (test) generates samples from H0, from which
     it is possible to compute p-values. The bootstrap typically generates
@@ -62,10 +77,12 @@ function permutation(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
-    β::AbstractVector{T}=coef(morig),
+    β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_method=:signflip,
     blup_method=ranef,
 ) where {T}
+    # XXX instead of straight zeros,
+    #     should we use 1-0s for intercept only?
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
     m = deepcopy(morig)
@@ -74,8 +91,9 @@ function permutation(
     rank = length(β_names)
 
     blups = blup_method(morig)
+    resids = residuals(morig)#, blups)
     reterms = morig.reterms
-
+    scalings = inflation_factor(morig, blups, resids)
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
@@ -90,14 +108,14 @@ function permutation(
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = ReentrantLock()
-    samp = replicate(n, use_threads=use_threads) do
+    samp = replicate(n; use_threads=use_threads) do
         model = m_threads[Threads.threadid()]
 
         local βsc = βsc_threads[Threads.threadid()]
         local θsc = θsc_threads[Threads.threadid()]
         lock(rnglock)
-        model = permute!(rng, model, blups, reterms;
-                       β=β, residual_method=residual_method)
+        model = permute!(rng, model; β=β, blups=blups, resids=resids,
+                         residual_method=residual_method, scalings=scalings)
         unlock(rnglock)
         refit!(model)
         (
@@ -117,8 +135,8 @@ function permutation(
     )
 end
 
-function permutation(nsamp::Integer, m::LinearMixedModel; kwargs...)
-    return permutation(Random.GLOBAL_RNG, nsamp, m; kwargs...)
+function permutation(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)
+    return permutation(Random.GLOBAL_RNG, nsamp, m, args...; kwargs...)
 end
 
 function permutation(rng::AbstractRNG, n::Integer,
@@ -128,61 +146,17 @@ function permutation(rng::AbstractRNG, n::Integer,
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-"""
-    olsranef(model::LinearMixedModel)
 
-Compute the group-level estimates using ordinary least squares.
-
-This is somewhat similar to the conditional modes / BLUPs computed without shrinkage.
-
-Optionally, instead of using the shrunken random effects from `ranef`, within-group OLS
-estimates can be computed and used instead with [`olsranef`](@ref). There is no shrinkage
-of the group-level estimates with this approach, which means singular estimates can be
-avoided. However,
-
-!!! warning
-    If the design matrix for the random effects is rank deficient (e.g., through the use of
-    `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
-"""
-function olsranef(model::LinearMixedModel{T}) where {T}
-    fixef_res = copy(response(model))
-    # what's not explained by the fixed effects has to be explained by the RE
-    X = model.X
-    β = model.β # (X'X) \ (X'fixef_res)
-    mul!(fixef_res, X, β, one(T), -one(T))
-
-    blups = Vector{Matrix{Float64}}()
-    for trm in model.reterms
-        re = []
-
-        z = trm.z
-        refs = unique(trm.refs)
-        ngrps = length(refs)
-        npreds = length(trm.cnames)
-
-        j = 1
-        for r in refs
-            i = trm.refs .== r
-            X = trm[i, j:(j+npreds-1)]
-            b = (X'X) \ (X'fixef_res[i])
-            push!(re, b)
-            j += npreds
-        end
-
-        push!(blups, hcat(re...))
-    end
-
-    return blups
-end
-
-
-permute!(model::LinearMixedModel, blups=ranef(model), reterms=model.reterms; kwargs...) =
-    permute!(Random.GLOBAL_RNG, model, blups, reterms; kwargs...)
+permute!(model::LinearMixedModel, args...; kwargs...) =
+    permute!(Random.GLOBAL_RNG, model, args...; kwargs...)
 
 """
-    permute!([rng::AbstractRNG,] model::LinearMixedModel,
-              blups=ranef(model), reterms=model.reterms;
-              β=coef(model), residual_method=:signflip)
+    permute!([rng::AbstractRNG,] model::LinearMixedModel;
+             β=zeros(length(coef(model))),
+             blups=ranef(model),
+             resids=residuals(model,blups),
+             residual_method=:signflip,
+             scalings=inflation_factor(model))
 
 Simulate and install a new response via permutation of the residuals
 at the observational level and sign-flipping of the conditional modes at group level.
@@ -217,6 +191,15 @@ avoided. However, if the design matrix for the random effects is rank deficient 
 through the use of `MixedModels.fulldummy` or missing cells in the data), then this method
 will fail.
 
+In addition to the permutation step, there is also an inflation step. Due to the
+shrinkage associated with the random effects in a mixed model, the variance of the
+conditional modes / BLUPs / random intercepts and slopes is less than the variance
+estimated by the model and displayed in the model summary or via `MixedModels.VarCorr`.
+This shrinkage also impacts the observational level residuals. To compensate for this,
+the resampled residuals and groups are scale-inflated so that their standard deviation
+matches that of the estimates in the original model. The default inflation factor is
+computed using [`inflation_factor`](@ref) on the model.
+
 See also [`permutation`](@ref), [`nonparametricbootstrap`](@ref) and [`resample!`](@ref).
 
 The functions `coef` and `coefnames` from `MixedModels` may also be useful.
@@ -236,14 +219,19 @@ Winkler, A. M., Ridgway, G. R., Webster, M. A., Smith, S. M., & Nichols, T. E. (
 Permutation inference for the general linear model. NeuroImage, 92, 381–397.
 https://doi.org/10.1016/j.neuroimage.2014.01.060
 """
-function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
-                   blups=ranef(model),
-                   reterms=model.reterms;
-                   β::AbstractVector{T}=coef(model),
-                   residual_method=:signflip) where {T}
+function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
+                  β::AbstractVector{T}=zeros(T, length(coef(model))),
+                  blups=ranef(model),
+                  resids=residuals(model,blups),
+                  residual_method=:signflip,
+                  scalings=inflation_factor(model)) where {T}
 
+    reterms = model.reterms
     y = response(model) # we are now modifying the model
-    copy!(y, residuals(model))
+    copy!(y, resids)
+
+    # inflate these to be on the same scale as the empirical variation instead of the MLE
+    y .*= last(scalings)
 
     if residual_method == :shuffle
         shuffle!(rng, y)
@@ -253,14 +241,17 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T},
         throw(ArgumentError("Invalid: residual permutation method: $(residual_method)"))
     end
 
-    for (re, trm) in zip(blups, reterms)
+    for (inflation, re, trm) in zip(scalings, blups, reterms)
         npreds, ngrps = size(re)
         # sign flipping
         newre = re * diagm(rand(rng, (-1,1), ngrps))
 
         # our RE are actually already scaled, but this method (of unscaledre!)
         # isn't dependent on the scaling (only the RNG methods are)
-        MixedModels.unscaledre!(y, trm, newre)
+        # this just multiplies the Z matrices by the BLUPs
+        # and add that to y
+        MixedModels.unscaledre!(y, trm, lmul!(inflation, newre))
+        # XXX inflation is resampling invariant -- should we move it out?
     end
 
     mul!(y, model.X, β, one(T), one(T))
@@ -286,6 +277,9 @@ See also [`permutation`](@ref).
 
 """
 function permutationtest(perm::MixedModelPermutation, model, type::Symbol=:twosided)
+    @warn """This method is known not to be fully correct.
+             The interface for this functionality will likely change drastically in the near future."""
+
     if type == :greater || type  == :twosided
         comp = >
     elseif type == :lesser
