@@ -4,6 +4,7 @@
 [![Stable Docs][docs-stable-img]][docs-stable-url]
 [![Dev Docs][docs-dev-img]][docs-dev-url]
 [![Codecov](https://codecov.io/gh/palday/MixedModelsPermutations.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/palday/MixedModelsPermutations.jl)
+[![DOI](https://zenodo.org/badge/337080334.svg)](https://zenodo.org/badge/latestdoi/337080334)
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://palday.github.io/MixedModelsPermutations.jl/dev
@@ -14,18 +15,18 @@
 
 `MixedModelsPermutations.jl` is a Julia package providing permutation and other resampling-based methods for[`MixedModels.jl`](https://juliastats.org/MixedModels.jl/stable/).
 
-This package is alpha software in early development and results may not be accurate. 
+This package is alpha software in early development and results may not be accurate.
 Nonetheless, it is registered in the Julia General Registry.
 You can install it like this:
 ```julia
-julia>] 
+julia>]
 pkg> add MixedModelsPermutations.jl
 ```
 
 To get the bleeding edge development version, you can install like this:
 You can install it like this:
 ```julia
-julia>] 
+julia>]
 pkg> add MixedModelsPermutations.jl#master
 ```
 
