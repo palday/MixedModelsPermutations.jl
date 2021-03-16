@@ -79,7 +79,7 @@ function permutation(
     use_threads::Bool=false,
     β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_method=:signflip,
-    blup_method=ranef,
+    blup_method=ranef_scaled,
 ) where {T}
     # XXX instead of straight zeros,
     #     should we use 1-0s for intercept only?
@@ -90,10 +90,11 @@ function permutation(
     β_names = (Symbol.(fixefnames(morig))..., )
     rank = length(β_names)
 
-    blups = blup_method(morig)
+    blups,scalings = blup_method(morig)
+    
     resids = residuals(morig)#, blups)
     reterms = morig.reterms
-    scalings = inflation_factor(morig, blups, resids)
+
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
@@ -133,6 +134,13 @@ function permutation(
         copy(morig.optsum.lowerbd),
         NamedTuple{Symbol.(fnames(morig))}(map(t -> (t.cnames...,), morig.reterms)),
     )
+end
+
+function ranef_scaled(morig)
+    blups = ranef(morig)
+    resids = residuals(morig)
+    scalings = inflation_factor(morig, blups, resids)
+    return blups,scalings
 end
 
 function permutation(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)

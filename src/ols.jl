@@ -58,11 +58,15 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where 
 
         push!(blups, hcat(re...))
     end
-
-    return blups
+    return blups, dummy_scalings(model.reterms)
 end
 
+function dummy_scalings(reterms)
+     scalings = repeat([LinearAlgebra.I],length(reterms))
+      scalings = vcat(scalings,1.) # add sigma scaling
+      return scalings
 
+end
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
     X = hcat(model.reterms...)
     flatblups = X'X \ X'fixef_res
@@ -79,7 +83,8 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) w
         offset += chunksize
         push!(blups, re)
     end
-    return blups
+    
+    return blups, dummy_scalings(model.reterms)
 end
 
 """
