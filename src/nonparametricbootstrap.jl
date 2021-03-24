@@ -11,11 +11,16 @@ The default random number generator is `Random.GLOBAL_RNG`.
 # Named Arguments
 `use_threads` determines whether or not to use thread-based parallelism.
 
-Note that `use_threads=true` may not offer a performance boost and may even
-decrease peformance if multithreaded linear algebra (BLAS) routines are available.
-In this case, threads at the level of the linear algebra may already occupy all
-processors/processor cores. There are plans to provide better support in coordinating
-Julia- and BLAS-level threads in the future.
+!!! note
+    Note that `use_threads=true` may not offer a performance boost and may even
+    decrease peformance if multithreaded linear algebra (BLAS) routines are available.
+    In this case, threads at the level of the linear algebra may already occupy all
+    processors/processor cores. There are plans to provide better support in coordinating
+    Julia- and BLAS-level threads in the future.
+
+!!! warning
+    The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
+    should not be used recursively. Do not wrap `nonparametricbootstrap` in an outer `SpinLock`.
 
 `blup_method` provides options for how/which group-level effects are passed for resampling.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
@@ -67,11 +72,12 @@ function nonparametricbootstrap(
     # we use locks to guarantee thread-safety, but there might be better ways to do this for some RNGs
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
-    rnglock = ReentrantLock()
+    rnglock = Threads.SpinLock()
     samp = replicate(n; use_threads=use_threads) do
-        mod = m_threads[Threads.threadid()]
-        local βsc = βsc_threads[Threads.threadid()]
-        local θsc = θsc_threads[Threads.threadid()]
+        tidx = use_threads ? Threads.threadid() : 1
+        model = m_threads[tidx]
+        local βsc = βsc_threads[tidx]
+        local θsc = θsc_threads[tidx]
         lock(rnglock)
         mod = resample!(rng, mod; β=β, blups=blups, resids=resids, scalings=scalings)
         unlock(rnglock)
