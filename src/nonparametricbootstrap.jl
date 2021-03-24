@@ -79,15 +79,15 @@ function nonparametricbootstrap(
         local βsc = βsc_threads[tidx]
         local θsc = θsc_threads[tidx]
         lock(rnglock)
-        mod = resample!(rng, mod; β=β, blups=blups, resids=resids, scalings=scalings)
+        model = resample!(rng, model; β=β, blups=blups, resids=resids, scalings=scalings)
         unlock(rnglock)
-        refit!(mod)
+        refit!(model)
         (
-         objective = mod.objective,
-         σ = mod.σ,
-         β = NamedTuple{β_names}(fixef!(βsc, mod)),
-         se = SVector{p,T}(stderror!(βsc, mod)),
-         θ = SVector{k,T}(getθ!(θsc, mod)),
+         objective = model.objective,
+         σ = model.σ,
+         β = NamedTuple{β_names}(fixef!(βsc, model)),
+         se = SVector{p,T}(stderror!(βsc, model)),
+         θ = SVector{k,T}(getθ!(θsc, model)),
         )
     end
     MixedModelBootstrap(
