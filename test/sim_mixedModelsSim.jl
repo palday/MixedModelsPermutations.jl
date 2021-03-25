@@ -47,7 +47,7 @@ dat = simdat_crossed(15, 30,
 
 #    f1 = @formula dv ~ 1 + age * condition  + (1+condition|item) + (1+condition|subj);
 f1 = @formula dv ~ 1 + condition  + (1+condition|item) + (1+condition|subj);
-mres = MixedModels.fit(MixedModel, f1, dat)
+mres2 = MixedModels.fit(MixedModel, f1, dat)
 
 
 rngseed = 1
@@ -59,6 +59,7 @@ rngseed = 1
 
 # ---------------- run jobs
 
+refit!(updateL!(setθ!(mres2,Vector(θ))))
 
 nPerm = 500
 nRep = 200
@@ -70,3 +71,27 @@ z_permResult = SharedArray{Float64}(nRep,length(β))
     β_permResult[k,:] .= res[1]
     z_permResult[k,:] .= res[2]
 end
+
+#------------
+
+subj_btwn = Dict("age" => ["O", "Y"])
+item_btwn = Dict("stimType" => ["I","II"])
+both_win = Dict("condition" => ["A", "B"])
+
+dat_sim = simdat_crossed(30, 30,subj_btwn = subj_btwn, item_btwn = item_btwn, both_win = both_win);
+
+f1 = @formula dv ~ 1 + condition  + (1+condition|item) + (1+condition|subj);
+mres1 = MixedModels.fit(MixedModel, f1, dat_sim)
+β = repeat([0],length(mres1.β))
+σ = 0.1
+
+
+θ = [1,0,1,1,0,1.]
+
+mres1 = simulate!(MersenneTwister(1), mres1, β = β, σ = σ, θ = θ)
+f_applied = apply_schema(f1,schema(f1,dat_sim),LinearMixedModel)
+tmp, Xs = modelcols(f_applied, dat)
+
+mres2 = MixedModels.LinearMixedModel(mres1.y, Xs,f_applied,[])
+updateL!(setθ!(mres2,Vector(θ)))
+permutation(MersenneTwister(1),2,mres2)
