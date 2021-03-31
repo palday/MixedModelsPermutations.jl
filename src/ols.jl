@@ -1,3 +1,4 @@
+using StatsModels, BlockDiagonals
 """
     olsranef(model::LinearMixedModel, method=:simultaneous)
 
@@ -36,7 +37,10 @@ function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
     return olsranef(model, fixef_res, Val(method))
 end
 
-function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where {T}
+
+
+
+function olsranef_org(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where {T}
 
     blups = Vector{Matrix{T}}()
     for trm in model.reterms

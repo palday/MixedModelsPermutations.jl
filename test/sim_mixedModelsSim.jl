@@ -1,97 +1,38 @@
+using DrWatson
+@quickactivate "unfoldjl_dev"
 
-#------------ setup parallel
-using Distributed
-using ProgressMeter
-using SharedArrays
-addprocs(10,exeflags="--project",enable_threaded_blas = true)
-#@everywhere using BLAS
-#@everywhere BLAS.set_num_threads(4)
-@everywhere using Pkg
-@everywhere Pkg.activate(".")
+using Random
+include("test/sim_utilities.jl")
 
-@everywhere using MixedModelsSim
-@everywhere using Random
-@everywhere using MixedModels
-@everywhere using MixedModelsPermutations
 
-@everywhere function run_perm(mres,k,nPerm,β,σ,θ)
-    simMod = deepcopy(mres)
-    simMod = simulate!(MersenneTwister(k), simMod, β = β, σ = σ, θ = θ)
-    refit!(simMod)
-    H0 = coef(simMod)
-    H0[2] = 0.0 
-    #H0[1] = 0.0
-    perm = permutation(MersenneTwister(k+1),nPerm,simMod,use_threads=false;β=H0); 
-    p_β = values(permutationtest(perm,simMod;statistic=:β ))
-    p_z = values(permutationtest(perm,simMod;statistic=:z ))
-    return (p_β,p_z)
+##---
+paramList = Dict(
+    "f" => @formula(dv ~ 1 + condition  + (1+condition|subj)),
+            #@formula dv ~ 1 + age * condition  + (1+condition|item) + (1+condition|subj)],
+    "θ" => [[1., 1., 1.]],
+    "σ" => 1.,
+    "β" => [[0., 0.]],
+    "blup_method" => ["ranef_scaled","olsranefjf", "olsranef"],
+    "residual_method" => [:signflip,:shuffle],
+    "nRep" => 1000,
+    "nPerm"=> 1000,
+)
+
+##--
+dl = dict_list(paramList)[1]
+simMod = sim_model(dl["f"])
+res = run_permutationtest(MersenneTwister(1),simMod,dl["nPerm"],dl["β"],dl["σ"],dl["θ"])
+
+##---
+nWorkers=20
+for dl = dict_list(paramList)
     
+    res = run_permutationtest_distributed(nWorkers,dl["nRep"],simMod,dl["nPerm"],dl["β"],dl["σ"],dl["θ"],dl["residual_method"],dl["blup_method"])
 
 end
-# ------------ define model etc.
-# put between-subject factors in a Dict
-subj_btwn = Dict("age" => ["O", "Y"])
+using DataFrames, AlgebraOfGraphics
 
-# there are no between-item factors in this design so you can omit it or set it to nothing
-item_btwn = Dict("stimType" => ["I","II"])
+df = DataFrame(z:=>[],:β=>[],:h1=>[],ranef=>[])
+df = DataFrame(:z=>res[1][:],:β=>res[2][:],:h1=>[repeat(["1"],size(res[1],1)); repeat(["0"],size(res[1],1))])
 
-# put within-subject/item factors in a Dict
-both_win = Dict("condition" => ["A", "B"])
-
-# simulate data
-dat = simdat_crossed(15, 30,
-                    subj_btwn = subj_btwn, 
-                    item_btwn = item_btwn, 
-                    both_win = both_win);
-
-
-#    f1 = @formula dv ~ 1 + age * condition  + (1+condition|item) + (1+condition|subj);
-f1 = @formula dv ~ 1 + condition  + (1+condition|item) + (1+condition|subj);
-mres2 = MixedModels.fit(MixedModel, f1, dat)
-
-
-rngseed = 1
-β = repeat([0],length(mres.β))
-σ = 0.1
-θ = repeat([1],length(mres.θ))
-
-θ = [1,0,1,1,0,1.]./σ
-
-# ---------------- run jobs
-
-refit!(updateL!(setθ!(mres2,Vector(θ))))
-
-nPerm = 500
-nRep = 200
-β_permResult = SharedArray{Float64}(nRep,length(β))
-z_permResult = SharedArray{Float64}(nRep,length(β))
-
-@showprogress 0.5 @distributed for k =1:nRep
-    res = run_perm(mres,k,nPerm,β,σ,θ)
-    β_permResult[k,:] .= res[1]
-    z_permResult[k,:] .= res[2]
-end
-
-#------------
-
-subj_btwn = Dict("age" => ["O", "Y"])
-item_btwn = Dict("stimType" => ["I","II"])
-both_win = Dict("condition" => ["A", "B"])
-
-dat_sim = simdat_crossed(30, 30,subj_btwn = subj_btwn, item_btwn = item_btwn, both_win = both_win);
-
-f1 = @formula dv ~ 1 + condition  + (1+condition|item) + (1+condition|subj);
-mres1 = MixedModels.fit(MixedModel, f1, dat_sim)
-β = repeat([0],length(mres1.β))
-σ = 0.1
-
-
-θ = [1,0,1,1,0,1.]
-
-mres1 = simulate!(MersenneTwister(1), mres1, β = β, σ = σ, θ = θ)
-f_applied = apply_schema(f1,schema(f1,dat_sim),LinearMixedModel)
-tmp, Xs = modelcols(f_applied, dat)
-
-mres2 = MixedModels.LinearMixedModel(mres1.y, Xs,f_applied,[])
-updateL!(setθ!(mres2,Vector(θ)))
-permutation(MersenneTwister(1),2,mres2)
+data(df) * mapping(:z,layout_y=:h1) * visual(Hist,bins=0:0.01:1)  |>draw()
