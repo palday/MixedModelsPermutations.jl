@@ -12,6 +12,7 @@ using Tables
 using MixedModels: MixedModelBootstrap
 using MixedModels: fixef!, stderror!
 using MixedModels: getθ!, updateL! # setθ! is imported for extending
+using MixedModels: replicate
 using MixedModels: unscaledre!
 
 import MixedModels: allpars, coefpvalues, issingular, setθ!, tidyβ, tidyσs, residuals

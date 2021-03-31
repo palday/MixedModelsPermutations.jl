@@ -30,6 +30,9 @@ The default random number generator is `Random.GLOBAL_RNG`.
     The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
     should not be used recursively. Do not wrap `permutation` in an outer `SpinLock`.
 
+`hide_progress` can be used to disable the progress bar. Note that the progress
+bar is automatically disabled for non-interactive (i.e. logging) contexts.
+
 Permutation at the level of residuals can be accomplished either via sign
 flipping (`residual_method=:signflip`) or via classical
 permutation/shuffling (`residual_method=:shuffle`).
@@ -82,6 +85,7 @@ function permutation(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    hide_progress=false,
     β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_method=:signflip,
     blup_method=ranef,
@@ -113,7 +117,7 @@ function permutation(
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = Threads.SpinLock()
-    samp = replicate(n; use_threads=use_threads) do
+    samp = replicate(n; use_threads=use_threads, hide_progress=hide_progress) do
         tidx = use_threads ? Threads.threadid() : 1
         model = m_threads[tidx]
         local βsc = βsc_threads[tidx]

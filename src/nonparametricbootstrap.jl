@@ -22,6 +22,9 @@ The default random number generator is `Random.GLOBAL_RNG`.
     The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
     should not be used recursively. Do not wrap `nonparametricbootstrap` in an outer `SpinLock`.
 
+`hide_progress` can be used to disable the progress bar. Note that the progress
+bar is automatically disabled for non-interactive (i.e. logging) contexts.
+
 `blup_method` provides options for how/which group-level effects are passed for resampling.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
 ordinary least squares (OLS) can be used with `olsranef`. There is no shrinkage of the
@@ -43,6 +46,7 @@ function nonparametricbootstrap(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    hide_progress=false,
     blup_method=ranef,
     β=coef(morig),
 ) where {T}
@@ -73,7 +77,7 @@ function nonparametricbootstrap(
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = Threads.SpinLock()
-    samp = replicate(n; use_threads=use_threads) do
+    samp = replicate(n; use_threads=use_threads, hide_progress=hide_progress) do
         tidx = use_threads ? Threads.threadid() : 1
         model = m_threads[tidx]
         local βsc = βsc_threads[tidx]
