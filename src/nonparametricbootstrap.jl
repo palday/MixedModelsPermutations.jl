@@ -11,11 +11,19 @@ The default random number generator is `Random.GLOBAL_RNG`.
 # Named Arguments
 `use_threads` determines whether or not to use thread-based parallelism.
 
-Note that `use_threads=true` may not offer a performance boost and may even
-decrease peformance if multithreaded linear algebra (BLAS) routines are available.
-In this case, threads at the level of the linear algebra may already occupy all
-processors/processor cores. There are plans to provide better support in coordinating
-Julia- and BLAS-level threads in the future.
+!!! note
+    Note that `use_threads=true` may not offer a performance boost and may even
+    decrease peformance if multithreaded linear algebra (BLAS) routines are available.
+    In this case, threads at the level of the linear algebra may already occupy all
+    processors/processor cores. There are plans to provide better support in coordinating
+    Julia- and BLAS-level threads in the future.
+
+!!! warning
+    The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
+    should not be used recursively. Do not wrap `nonparametricbootstrap` in an outer `SpinLock`.
+
+`hide_progress` can be used to disable the progress bar. Note that the progress
+bar is automatically disabled for non-interactive (i.e. logging) contexts.
 
 `blup_method` provides options for how/which group-level effects are passed for resampling.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
@@ -38,6 +46,7 @@ function nonparametricbootstrap(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    hide_progress=false,
     blup_method=ranef,
     β=coef(morig),
 ) where {T}
@@ -67,21 +76,22 @@ function nonparametricbootstrap(
     # we use locks to guarantee thread-safety, but there might be better ways to do this for some RNGs
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
-    rnglock = ReentrantLock()
-    samp = replicate(n; use_threads=use_threads) do
-        mod = m_threads[Threads.threadid()]
-        local βsc = βsc_threads[Threads.threadid()]
-        local θsc = θsc_threads[Threads.threadid()]
+    rnglock = Threads.SpinLock()
+    samp = replicate(n; use_threads=use_threads, hide_progress=hide_progress) do
+        tidx = use_threads ? Threads.threadid() : 1
+        model = m_threads[tidx]
+        local βsc = βsc_threads[tidx]
+        local θsc = θsc_threads[tidx]
         lock(rnglock)
-        mod = resample!(rng, mod; β=β, blups=blups, resids=resids, scalings=scalings)
+        model = resample!(rng, model; β=β, blups=blups, resids=resids, scalings=scalings)
         unlock(rnglock)
-        refit!(mod)
+        refit!(model)
         (
-         objective = mod.objective,
-         σ = mod.σ,
-         β = NamedTuple{β_names}(fixef!(βsc, mod)),
-         se = SVector{p,T}(stderror!(βsc, mod)),
-         θ = SVector{k,T}(getθ!(θsc, mod)),
+         objective = model.objective,
+         σ = model.σ,
+         β = NamedTuple{β_names}(fixef!(βsc, model)),
+         se = SVector{p,T}(stderror!(βsc, model)),
+         θ = SVector{k,T}(getθ!(θsc, model)),
         )
     end
     MixedModelBootstrap(

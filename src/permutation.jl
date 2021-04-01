@@ -19,11 +19,19 @@ The default random number generator is `Random.GLOBAL_RNG`.
 # Named Arguments
 `use_threads` determines whether or not to use thread-based parallelism.
 
-Note that `use_threads=true` may not offer a performance boost and may even
-decrease peformance if multithreaded linear algebra (BLAS) routines are available.
-In this case, threads at the level of the linear algebra may already occupy all
-processors/processor cores. There are plans to provide better support in coordinating
-Julia- and BLAS-level threads in the future.
+!!! note
+    Note that `use_threads=true` may not offer a performance boost and may even
+    decrease peformance if multithreaded linear algebra (BLAS) routines are available.
+    In this case, threads at the level of the linear algebra may already occupy all
+    processors/processor cores. There are plans to provide better support in coordinating
+    Julia- and BLAS-level threads in the future.
+
+!!! warning
+    The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
+    should not be used recursively. Do not wrap `permutation` in an outer `SpinLock`.
+
+`hide_progress` can be used to disable the progress bar. Note that the progress
+bar is automatically disabled for non-interactive (i.e. logging) contexts.
 
 Permutation at the level of residuals can be accomplished either via sign
 flipping (`residual_method=:signflip`) or via classical
@@ -77,6 +85,7 @@ function permutation(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    hide_progress=false,
     β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_method=:signflip,
     blup_method=ranef,
@@ -107,12 +116,12 @@ function permutation(
     # we use locks to guarantee thread-safety, but there might be better ways to do this for some RNGs
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
-    rnglock = ReentrantLock()
-    samp = replicate(n; use_threads=use_threads) do
-        model = m_threads[Threads.threadid()]
-
-        local βsc = βsc_threads[Threads.threadid()]
-        local θsc = θsc_threads[Threads.threadid()]
+    rnglock = Threads.SpinLock()
+    samp = replicate(n; use_threads=use_threads, hide_progress=hide_progress) do
+        tidx = use_threads ? Threads.threadid() : 1
+        model = m_threads[tidx]
+        local βsc = βsc_threads[tidx]
+        local θsc = θsc_threads[tidx]
         lock(rnglock)
         model = permute!(rng, model; β=β, blups=blups, resids=resids,
                          residual_method=residual_method, scalings=scalings)
