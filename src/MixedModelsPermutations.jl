@@ -1,5 +1,6 @@
 module MixedModelsPermutations
 
+using BlockDiagonals
 using LinearAlgebra
 using MixedModels # we add several methods
 using Random
@@ -7,6 +8,7 @@ using SparseArrays
 using StaticArrays
 using Statistics
 using StatsBase
+using StatsModels
 using Tables
 
 using MixedModels: MixedModelBootstrap

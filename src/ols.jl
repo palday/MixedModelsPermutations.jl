@@ -13,7 +13,9 @@ effects design matrix must not be singular.
 Two methods are provided:
 1. (default) OLS estimates computed for all strata (blocking variables)
    simultaneously with `method=simultaneous`. This pools the variance
-   across estimates but does not shrink the estimates.
+   across estimates but does not shrink the estimates. Note that this method
+   internal reparameterizes the random effects matrix `Z` to use effects coding
+   and only use a single intercept shared across all grouping variables.
 2. OLS estimates computed within each stratum with `method=stratum`. This
    method is equivalent for example to computing each subject-level and each
    item-level regression separately.
@@ -23,8 +25,8 @@ give the same results.
 
 !!! warning
     If the design matrix for the random effects is rank deficient (e.g., through
-    the use of `MixedModels.fulldummy` or missing cells in the data), then this
-    method will fail.
+    the use of `MixedModels.fulldummy` or missing cells in the data), then these
+    methods will fail because no shrinkage/regularization is applied.
 """
 function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
     fixef_res = copy(response(model))
@@ -64,11 +66,30 @@ end
 
 
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
-    X = hcat(model.reterms...)
-    flatblups = X'X \ X'fixef_res
+    n_reterms = size(model.reterms)[1]
+
+    code = Vector{Matrix{T}}(undef, n_reterms) # new contrast matrices
+    mat = Vector{Matrix{T}}(undef, n_reterms) # new Z model matrices
+
+    ### create new Z matrices with orthogonal contrasts
+    for (i, trm) in enumerate(model.reterms)
+        dim = size(trm.z)[1]
+        cd = StatsModels.ContrastsMatrix(EffectsCoding(), trm.levels).matrix
+        cd = kron(cd, I(dim))
+        code[i] = cd
+        mat[i] = trm * cd
+    end
+
+    # add in intercept
+    # note that we pass two dims to ones to create a matrix
+    pushfirst!(mat, ones(sum(first ∘ size, mat), 1))
+    Z = hcat(mat...)
+    # compute the BLUPs
+    flatblups = Z'Z \ Z'fixef_res
+    # get back to original coding
+    flatblups = BlockDiagonal(code) * @view flatblups[2:end, :]
 
     blups = Vector{Matrix{T}}()
-
     offset = 1
     for trm in model.reterms
         chunksize = size(trm, 2)
