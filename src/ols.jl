@@ -88,9 +88,8 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) w
     flatblups = Z'Z \ Z'fixef_res
     # get back to original coding
     flatblups = BlockDiagonal(code) * @view flatblups[2:end, :]
-    @show size(flatblups)
-    blups = Vector{Matrix{T}}()
 
+    blups = Vector{Matrix{T}}()
     offset = 1
     for trm in model.reterms
         chunksize = size(trm, 2)
