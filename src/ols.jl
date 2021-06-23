@@ -23,7 +23,7 @@ give the same results.
 
 !!! warning
     If the design matrix for the random effects is rank deficient (e.g., through
-    the use of `MixedModels.fulldummy` or missing cells in the data), then this
+    the use of `MixedModels.fulldummy` or missing cells in the data), then only
     method will fail.
 """
 function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
@@ -64,8 +64,29 @@ end
 
 
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
-    X = hcat(model.reterms...)
-    flatblups = X'X \ X'fixef_res
+    l = size(model.reterms)[1]
+
+    mat = Array{Any}(undef, l);
+    code = Array{Any}(undef, l);
+    ### I get the contrasts
+    for i in 1:l
+        trm = model.reterms[i];
+        dim = size(trm.z)[1];
+        cd = StatsModels.ContrastsMatrix(EffectsCoding(), trm.levels).matrix;
+        cd = kron(cd,I(dim));
+        code[i] = cd;
+        mat[i] = trm*cd;
+    end
+    mat
+    X = hcat(mat...)
+    X1 = hcat(ones(size(X)[1]), X)
+    fixef_res = response(model) - model.X*model.β;
+    flatblups = X1'X1 \ X1'fixef_res;
+    flatblups = deleteat!(flatblups,1)
+
+    code_all = BlockDiagonal([x for x in code])
+
+    flatblups = code_all*flatblups
 
     blups = Vector{Matrix{T}}()
 

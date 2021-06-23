@@ -7,6 +7,7 @@ using SparseArrays
 using StaticArrays
 using Statistics
 using StatsBase
+using StatsModels
 using Tables
 
 using MixedModels: MixedModelBootstrap
