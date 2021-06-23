@@ -66,30 +66,29 @@ end
 
 
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
-    l = size(model.reterms)[1]
+    n_reterms = size(model.reterms)[1]
 
-    mat = Array{Any}(undef, l);
-    code = Array{Any}(undef, l);
-    ### I get the contrasts
-    for i in 1:l
-        trm = model.reterms[i];
-        dim = size(trm.z)[1];
-        cd = StatsModels.ContrastsMatrix(EffectsCoding(), trm.levels).matrix;
-        cd = kron(cd,I(dim));
-        code[i] = cd;
-        mat[i] = trm*cd;
+    code = Vector{Matrix{T}}(undef, n_reterms) # new contrast matrices
+    mat = Vector{Matrix{T}}(undef, n_reterms) # new Z model matrices
+
+    ### create new Z matrices with orthogonal contrasts
+    for (i, trm) in enumerate(model.reterms)
+        dim = size(trm.z)[1]
+        cd = StatsModels.ContrastsMatrix(EffectsCoding(), trm.levels).matrix
+        cd = kron(cd, I(dim))
+        code[i] = cd
+        mat[i] = trm * cd
     end
-    mat
-    X = hcat(mat...)
-    X1 = hcat(ones(size(X)[1]), X)
-    fixef_res = response(model) - model.X*model.β;
-    flatblups = X1'X1 \ X1'fixef_res;
-    flatblups = deleteat!(flatblups,1)
 
-    code_all = BlockDiagonal([x for x in code])
-
-    flatblups = code_all*flatblups
-
+    # add in intercept
+    # note that we pass two dims to ones to create a matrix
+    pushfirst!(mat, ones(sum(first ∘ size, mat), 1))
+    Z = hcat(mat...)
+    # compute the BLUPs
+    flatblups = Z'Z \ Z'fixef_res
+    # get back to original coding
+    flatblups = BlockDiagonal(code) * @view flatblups[2:end, :]
+    @show size(flatblups)
     blups = Vector{Matrix{T}}()
 
     offset = 1
