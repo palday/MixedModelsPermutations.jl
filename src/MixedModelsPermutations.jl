@@ -1,5 +1,6 @@
 module MixedModelsPermutations
 
+using BlockDiagonals
 using LinearAlgebra
 using MixedModels # we add several methods
 using Random
