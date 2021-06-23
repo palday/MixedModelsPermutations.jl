@@ -13,7 +13,9 @@ effects design matrix must not be singular.
 Two methods are provided:
 1. (default) OLS estimates computed for all strata (blocking variables)
    simultaneously with `method=simultaneous`. This pools the variance
-   across estimates but does not shrink the estimates.
+   across estimates but does not shrink the estimates. Note that this method
+   internal reparameterizes the random effects matrix `Z` to use effects coding
+   and only use a single intercept shared across all grouping variables.
 2. OLS estimates computed within each stratum with `method=stratum`. This
    method is equivalent for example to computing each subject-level and each
    item-level regression separately.
@@ -23,8 +25,8 @@ give the same results.
 
 !!! warning
     If the design matrix for the random effects is rank deficient (e.g., through
-    the use of `MixedModels.fulldummy` or missing cells in the data), then only
-    method will fail.
+    the use of `MixedModels.fulldummy` or missing cells in the data), then these
+    methods will fail because no shrinkage/regularization is applied.
 """
 function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
     fixef_res = copy(response(model))
