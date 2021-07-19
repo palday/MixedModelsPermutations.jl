@@ -179,11 +179,9 @@ function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
          # while taking advantage of LowerTriangular lmul!
         newre = re[:, samp]
 
-        # our RE are actually already scaled, but this method (of unscaledre!)
-        # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        MixedModels.unscaledre!(y, trm, lmul!(inflation, newre))
+        mul!(y, trm, lmul!(inflation, newre))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 

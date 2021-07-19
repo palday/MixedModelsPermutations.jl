@@ -119,9 +119,7 @@ function MixedModels.residuals(model::LinearMixedModel{T}, blups::Vector{<:Abstr
     ŷ = zeros(T, length(y))
 
     for (re, trm) in zip(blups, model.reterms)
-        # our RE are actually already scaled, but this method (of unscaledre!)
-        # isn't dependent on the scaling (only the RNG methods are)
-        MixedModels.unscaledre!(ŷ, trm, re)
+        mul!(ŷ, trm, re)
     end
 
     mul!(ŷ, model.X, model.β, one(T), one(T))
