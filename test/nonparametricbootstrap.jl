@@ -26,7 +26,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
                     :value => shortestcovint => :interval)
 
     let rho = filter(:type => ==("ρ"), nondf)
-        violations = mapreduce(+, rho[:, :interval]) do (a,b)
+        violations = count(rho[:, :interval]) do (a,b)
             return !(-1 <= a <= b <= +1)
         end
 
@@ -34,16 +34,16 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     end
 
     let beta = filter(:type => ==("β"), nondf)
-        violations = mapreduce(+, zip(fixef(m1), beta[:, :interval])) do (b, (lower,upper))
+        violations = count(zip(fixef(m1), beta[:, :interval])) do (b, (lower,upper))
             return !(lower <= b <= upper)
         end
         @test violations == 0
     end
 
     let sigma = filter(:type => ==("σ"), nondf)
-        sigs =[ MixedModels.σs(m1).subj...; m1.σ ]
+        sigs = [ MixedModels.σs(m1).subj...; m1.σ ]
 
-        violations = mapreduce(+, zip(sigs, sigma[:, :interval])) do (b, (lower,upper))
+        violations = count(zip(sigs, sigma[:, :interval])) do (b, (lower,upper))
             return !(0 <= lower <= b <= upper)
         end
         @test violations == 0
