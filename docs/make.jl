@@ -2,7 +2,6 @@ using Documenter
 using MixedModelsPermutations
 
 makedocs(
-    root = joinpath(dirname(pathof(MixedModelsPermutations)), "..", "docs"),
     sitename = "MixedModelsPermutations",
     doctest = true,
     pages = [
@@ -10,4 +9,4 @@ makedocs(
     ],
 )
 
-deploydocs(repo = "github.com/palday/MixedModelsPermutations.jl.git", push_preview = true)
+deploydocs(repo = "github.com/palday/MixedModelsPermutations.jl.git", push_preview=true, devbranch="main")
