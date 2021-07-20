@@ -119,7 +119,7 @@ function MixedModels.residuals(model::LinearMixedModel{T}, blups::Vector{<:Abstr
     ŷ = zeros(T, length(y))
 
     for (re, trm) in zip(blups, model.reterms)
-        mul!(ŷ, trm, re)
+        mul!(ŷ, trm, re, one(T), one(T))
     end
 
     mul!(ŷ, model.X, model.β, one(T), one(T))

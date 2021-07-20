@@ -257,7 +257,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
 
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        mul!(y, trm, lmul!(inflation, newre))
+        mul!(y, trm, lmul!(inflation, newre), one(T), one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 
