@@ -20,11 +20,11 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     nondf = DataFrame(shortestcovint(non))
 
     # when scale inflation is correct, par and non should line up very closely.
-    par = parametricbootstrap(StableRNG(42),1000, m1);
+    par = parametricbootstrap(StableRNG(42), 1000, m1)
     pardf = DataFrame(shortestcovint(par))
 
     let rho = filter(:type => ==("ρ"), nondf)
-        violations = count(rho[:, :interval]) do (a,b)
+        violations = count(zip(rho.lower, rho.upper)) do (a, b)
             return !(-1 <= a <= b <= +1)
         end
 
@@ -32,7 +32,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     end
 
     let beta = filter(:type => ==("β"), nondf)
-        violations = count(zip(fixef(m1), beta[:, :interval])) do (b, (lower,upper))
+        violations = count(zip(fixef(m1), beta.lower, beta.upper)) do (b, lower, upper)
             return !(lower <= b <= upper)
         end
         @test violations == 0
@@ -41,7 +41,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     let sigma = filter(:type => ==("σ"), nondf)
         sigs = [ MixedModels.σs(m1).subj...; m1.σ ]
 
-        violations = count(zip(sigs, sigma[:, :interval])) do (b, (lower,upper))
+        violations = count(zip(sigs, sigma.lower, sigma.upper)) do (b, lower, upper)
             return !(0 <= lower <= b <= upper)
         end
         @test_broken violations == 0
