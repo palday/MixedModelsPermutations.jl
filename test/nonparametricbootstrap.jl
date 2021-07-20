@@ -14,16 +14,14 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     # test marking as not fit
     @test_logs (:warn,) show(io, rm1)
 
-    non = nonparametricbootstrap(StableRNG(42),1000, m1)
+    non = nonparametricbootstrap(StableRNG(42), 1000, m1)
     @test non isa MixedModelBootstrap
 
-    nondf = combine(groupby(DataFrame(non.allpars), [:type, :group, :names]),
-                    :value => shortestcovint => :interval)
+    nondf = DataFrame(shortestcovint(non))
 
     # when scale inflation is correct, par and non should line up very closely.
     par = parametricbootstrap(StableRNG(42),1000, m1);
-    pardf = combine(groupby(DataFrame(par.allpars), [:type, :group, :names]),
-                    :value => shortestcovint => :interval)
+    pardf = DataFrame(shortestcovint(par))
 
     let rho = filter(:type => ==("ρ"), nondf)
         violations = count(rho[:, :interval]) do (a,b)
