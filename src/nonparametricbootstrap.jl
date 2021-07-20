@@ -165,11 +165,11 @@ function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
     reterms = model.reterms
     y = response(model) # we are now modifying the model
 
-    # inflate these to be on the same scale as the empirical variation instead of the MLE
-    y .*= last(scalings)
-
     # sampling with replacement
     sample!(rng, resids, y; replace=true)
+
+    # inflate these to be on the same scale as the empirical variation instead of the MLE
+    y .*= last(scalings)
 
     for (inflation, re, trm) in zip(scalings[2:end], blups, reterms)
         npreds, ngrps = size(re)
@@ -181,7 +181,7 @@ function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
 
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        mul!(y, trm, lmul!(inflation, newre))
+        mul!(y, trm, lmul!(inflation, newre), one(T), one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 

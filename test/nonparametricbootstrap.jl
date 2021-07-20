@@ -44,7 +44,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
         violations = count(zip(sigs, sigma.lower, sigma.upper)) do (b, lower, upper)
             return !(0 <= lower <= b <= upper)
         end
-        @test_broken violations == 0
+        @test violations == 0
     end
 end
 
