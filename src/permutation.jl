@@ -1,6 +1,6 @@
 using MixedModels: fixef!, stderror!
 using MixedModels: getθ!, setθ!, updateL!
-using MixedModels: unscaledre!
+using LinearAlgebra
 using Statistics
 
 """
@@ -255,11 +255,9 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
         # sign flipping
         newre = re * diagm(rand(rng, (-1,1), ngrps))
 
-        # our RE are actually already scaled, but this method (of unscaledre!)
-        # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        MixedModels.unscaledre!(y, trm, lmul!(inflation, newre))
+        mul!(y, trm, lmul!(inflation, newre), one(T), one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 
