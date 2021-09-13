@@ -2,7 +2,7 @@ using DrWatson
 @quickactivate "unfoldjl_dev"
 
 using Random
-include("test/sim_utilities.jl")
+include("sim_utilities.jl")
 
 
 ##---
@@ -26,7 +26,7 @@ res = run_permutationtest(MersenneTwister(1),simMod,dl["nPerm"],dl["β"],dl["σ"
 ##---
 nWorkers=20
 for dl = dict_list(paramList)
-    
+
     res = run_permutationtest_distributed(nWorkers,dl["nRep"],simMod,dl["nPerm"],dl["β"],dl["σ"],dl["θ"],dl["residual_method"],dl["blup_method"])
 
 end
