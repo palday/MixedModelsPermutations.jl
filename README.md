@@ -3,7 +3,7 @@
 [![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![Stable Docs][docs-stable-img]][docs-stable-url]
 [![Dev Docs][docs-dev-img]][docs-dev-url]
-[![Codecov](https://codecov.io/gh/palday/MixedModelsPermutations.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/palday/MixedModelsPermutations.jl)
+[![Codecov](https://codecov.io/gh/palday/MixedModelsPermutations.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/palday/MixedModelsPermutations.jl)
 [![DOI](https://zenodo.org/badge/337080334.svg)](https://zenodo.org/badge/latestdoi/337080334)
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
@@ -27,7 +27,7 @@ To get the bleeding edge development version, you can install like this:
 You can install it like this:
 ```julia
 julia>]
-pkg> add MixedModelsPermutations.jl#master
+pkg> add MixedModelsPermutations.jl#main
 ```
 
 If you find inaccurate results, please try the development version to see if the underlying problem has already been fixed before filing an issue.

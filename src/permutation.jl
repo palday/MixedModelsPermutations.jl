@@ -1,6 +1,6 @@
 using MixedModels: fixef!, stderror!
 using MixedModels: getθ!, setθ!, updateL!
-using MixedModels: unscaledre!
+using LinearAlgebra
 using Statistics
 
 """
@@ -29,6 +29,9 @@ The default random number generator is `Random.GLOBAL_RNG`.
 !!! warning
     The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
     should not be used recursively. Do not wrap `permutation` in an outer `SpinLock`.
+
+`hide_progress` can be used to disable the progress bar. Note that the progress
+bar is automatically disabled for non-interactive (i.e. logging) contexts.
 
 Permutation at the level of residuals can be accomplished either via sign
 flipping (`residual_method=:signflip`) or via classical
@@ -82,6 +85,7 @@ function permutation(
     n::Integer,
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
+    hide_progress=false,
     β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_method=:signflip,
     blup_method=ranef_scaled,
@@ -96,7 +100,7 @@ function permutation(
     rank = length(β_names)
 
     blups,scalings = blup_method(morig)
-    
+
     resids = residuals(morig)#, blups)
     reterms = morig.reterms
 
@@ -114,7 +118,7 @@ function permutation(
     # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
     # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
     rnglock = Threads.SpinLock()
-    samp = replicate(n; use_threads=use_threads) do
+    samp = replicate(n; use_threads=use_threads, hide_progress=hide_progress) do
         tidx = use_threads ? Threads.threadid() : 1
         model = m_threads[tidx]
         local βsc = βsc_threads[tidx]
@@ -259,11 +263,9 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
         # sign flipping
         newre = re * diagm(rand(rng, (-1,1), ngrps))
 
-        # our RE are actually already scaled, but this method (of unscaledre!)
-        # isn't dependent on the scaling (only the RNG methods are)
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        MixedModels.unscaledre!(y, trm, lmul!(inflation, newre))
+        mul!(y, trm, lmul!(inflation, newre), one(T), one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 
@@ -321,7 +323,7 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
     for (ix,k) in enumerate(Symbol.(coefnames(model)))
         dd[k] = perms[statistic][perms.coefname .== k]
 
-        
+
         push!(dd[k],ests[k]) # simplest approximation to ensure p is never 0 (impossible for permutation test)
         if type == :twosided
             # in case of testing the betas, H0 might be not β==0, therefore we have to remove it here first before we can abs
@@ -335,17 +337,17 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
               dd[k]  .= abs.(dd[k])
               ests[k] = abs(ests[k])
         end
- 
-        
+
+
     end
 
-    # short way to calculate: 
+    # short way to calculate:
     # b = sum.(abs.(permDist).>=abs.(testValue)); (twosided)
     # Includes the conservative correction for approximate permutation tests
-    # p_t = (b+1)/(nperm+1); 
+    # p_t = (b+1)/(nperm+1);
 
     # (with comp being <=) Note that sum(<=(ests),v) does the same as  sum(v .<=ests) (thus "reversed" arguments in the first bracket)
     results = (; (k => (1+sum(comp(ests[k]),v))/(1+length(v)) for (k,v) in dd)...)
-    
+
     return results
 end

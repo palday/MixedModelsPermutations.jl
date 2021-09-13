@@ -27,7 +27,7 @@ function sim_model(f)
 
 end
 function run_permutationtest_distributed(n_workers, nRep, simMod,args...)
-    
+
     if nworkers() < n_workers
         # open as many as necessary
         println("Starting Workers, this might take some time")
@@ -37,7 +37,7 @@ function run_permutationtest_distributed(n_workers, nRep, simMod,args...)
             enable_threaded_blas = true,
         )
     end
-    
+
     # activate environment
     eval(macroexpand(Distributed, quote
         @everywhere using Pkg
@@ -56,9 +56,9 @@ function run_permutationtest_distributed(n_workers, nRep, simMod,args...)
     )
     β_permResult = SharedArray{Float64}(nRep, length(β))
     z_permResult = SharedArray{Float64}(nRep, length(β))
-    
+
     @everywhere include("test/sim_utilities.jl")
-    
+
     println("starting @distributed")
     # parallel loop
     @showprogress @distributed for k = 1:nRep
