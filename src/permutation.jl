@@ -7,7 +7,7 @@ using Statistics
     permutation([rng::AbstractRNG,] nsamp::Integer, m::LinearMixedModel;
                 use_threads::Bool=false,
                 β=zeros(length(coef(morig))),
-                residual_method=:signflip,
+                residual_permutation=:signflip,
                 blup_method=ranef)
 
 Perform `nsamp` nonparametric bootstrap replication fits of `m`, returning a `MixedModelBootstrap`.
@@ -34,8 +34,8 @@ The default random number generator is `Random.GLOBAL_RNG`.
 bar is automatically disabled for non-interactive (i.e. logging) contexts.
 
 Permutation at the level of residuals can be accomplished either via sign
-flipping (`residual_method=:signflip`) or via classical
-permutation/shuffling (`residual_method=:shuffle`).
+flipping (`residual_permutation=:signflip`) or via classical
+permutation/shuffling (`residual_permutation=:shuffle`).
 
 `blup_method` provides options for how/which group-level effects are passed for permutation.
 The default `ranef` uses the shrunken conditional modes / BLUPs. Unshrunken estimates from
@@ -87,7 +87,7 @@ function permutation(
     use_threads::Bool=false,
     hide_progress=false,
     β::AbstractVector{T}=zeros(T, length(coef(morig))),
-    residual_method=:signflip,
+    residual_permutation=:signflip,
     blup_method=ranef,
 ) where {T}
     # XXX instead of straight zeros,
@@ -124,7 +124,7 @@ function permutation(
         local θsc = θsc_threads[tidx]
         lock(rnglock)
         model = permute!(rng, model; β=β, blups=blups, resids=resids,
-                         residual_method=residual_method, scalings=scalings)
+                         residual_permutation=residual_permutation, scalings=scalings)
         unlock(rnglock)
         refit!(model)
         (
@@ -164,7 +164,7 @@ permute!(model::LinearMixedModel, args...; kwargs...) =
              β=zeros(length(coef(model))),
              blups=ranef(model),
              resids=residuals(model,blups),
-             residual_method=:signflip,
+             residual_permutation=:signflip,
              scalings=inflation_factor(model))
 
 Simulate and install a new response via permutation of the residuals
@@ -180,8 +180,8 @@ julia> hypothesis[1] = 0.0;
 ```
 
 Permutation at the level of residuals can be accomplished either via sign
-flipping (`residual_method=:signflip`) or via classical
-permutation/shuffling (`residual_method=:shuffle`).
+flipping (`residual_permutation=:signflip`) or via classical
+permutation/shuffling (`residual_permutation=:shuffle`).
 
 Sign-flipped permutation of the residuals is similar to permuting the
 (fixed-effects) design matrix; shuffling the residuals is the same as permuting the
@@ -232,7 +232,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
                   β::AbstractVector{T}=zeros(T, length(coef(model))),
                   blups=ranef(model),
                   resids=residuals(model,blups),
-                  residual_method=:signflip,
+                  residual_permutation=:signflip,
                   scalings=inflation_factor(model)) where {T}
 
     reterms = model.reterms
@@ -242,12 +242,12 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
     # inflate these to be on the same scale as the empirical variation instead of the MLE
     y .*= last(scalings)
 
-    if residual_method == :shuffle
+    if residual_permutation == :shuffle
         shuffle!(rng, y)
-    elseif  residual_method == :signflip
+    elseif  residual_permutation == :signflip
         y .*= rand(rng, (-1,1), length(y))
     else
-        throw(ArgumentError("Invalid: residual permutation method: $(residual_method)"))
+        throw(ArgumentError("Invalid: residual permutation method: $(residual_permutation)"))
     end
 
     for (inflation, re, trm) in zip(scalings, blups, reterms)

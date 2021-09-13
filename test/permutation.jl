@@ -11,11 +11,11 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
     m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy)
-    rm1 = permute!(StableRNG(42), deepcopy(m1); residual_method=:signflip)
-    rm1 = permute!(StableRNG(42), deepcopy(m1); residual_method=:shuffle)
+    rm1 = permute!(StableRNG(42), deepcopy(m1); residual_permutation=:signflip)
+    rm1 = permute!(StableRNG(42), deepcopy(m1); residual_permutation=:shuffle)
     # test marking as not fit
     @test_logs (:warn,) show(io, rm1)
-    @test_throws ArgumentError permute!(deepcopy(m1); residual_method=:bad)
+    @test_throws ArgumentError permute!(deepcopy(m1); residual_permutation=:bad)
 
     H0 = coef(m1)
     H0[2] = 0.0 # slope of days is 0
