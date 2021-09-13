@@ -1,3 +1,4 @@
+using StatsModels, BlockDiagonals
 """
     olsranef(model::LinearMixedModel, method=:simultaneous)
 
@@ -38,7 +39,10 @@ function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
     return olsranef(model, fixef_res, Val(method))
 end
 
-function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where {T}
+
+
+
+function olsranef_org(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where {T}
 
     blups = Vector{Matrix{T}}()
     for trm in model.reterms
@@ -60,11 +64,15 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where 
 
         push!(blups, hcat(re...))
     end
-
-    return blups
+    return blups, dummy_scalings(model.reterms)
 end
 
+function dummy_scalings(reterms)
+     scalings = repeat([LinearAlgebra.I],length(reterms))
+      scalings = vcat(scalings,1.) # add sigma scaling
+      return scalings
 
+end
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
     n_reterms = size(model.reterms)[1]
 
@@ -100,7 +108,8 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) w
         offset += chunksize
         push!(blups, re)
     end
-    return blups
+    
+    return blups, dummy_scalings(model.reterms)
 end
 
 """
