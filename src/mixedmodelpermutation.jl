@@ -23,7 +23,7 @@ Characteristics of the permutation replicates can be extracted as properties.  T
 `σρs` properties unravel the `σ` and `θ` estimates into estimates of the standard deviations
 and correlations of the random-effects terms.
 """
-struct MixedModelPermutation{T<:AbstractFloat}
+struct MixedModelPermutation{T<:AbstractFloat} <: MixedModels.MixedModelFitCollection{T}
     fits::Vector
     λ::Vector{<:Union{LowerTriangular{T,Matrix{T}},Diagonal{T,Vector{T}}}}
     inds::Vector{Vector{Int}}
@@ -31,41 +31,9 @@ struct MixedModelPermutation{T<:AbstractFloat}
     fcnames::NamedTuple
 end
 
+"""
+_perm2boot(p::MixedModelPermutation)
 
-#####
-##### Convert and Delegate Methods to MixedModelBootstrap
-#####
-
-# XXX This can be removed when MixedModels.jl introduces the abstract fit
-#     collection type and broadens their method signatures
-
-# non copying converstion to a bootstrap object.
+Non copying conversion to MixedModels.MixedModelBootstrap.
+"""
 _perm2boot(p::MixedModelPermutation) = MixedModelBootstrap(p.fits, p.λ, p.inds, p.lowerbd, p.fcnames)
-
-# delegate methods
-for f in (:allpars, :coefpvalues, :issingular, :setθ!, :tidyβ, :tidyσs)
-
-    @eval begin
-        MixedModels.$f(p::MixedModelPermutation) = MixedModels.$f(_perm2boot(p))
-    end
-end
-
-
-Base.propertynames(p::MixedModelPermutation) = propertynames(_perm2boot(p))
-
-
-function Base.getproperty(p::MixedModelPermutation, s::Symbol)
-    if s ∈ [:objective, :σ, :θ, :se]
-        getproperty.(getfield(p, :fits), s)
-    elseif s == :β
-        tidyβ(p)
-    elseif s == :coefpvalues
-        coefpvalues(p)
-    elseif s == :σs
-        tidyσs(p)
-    elseif s == :allpars
-        allpars(p)
-    else
-        getfield(p, s)
-    end
-end

@@ -137,7 +137,7 @@ function permutation(
         model = permute!(rng, model; β=β, blups=blups, resids=resids,
                          residual_permutation=residual_permutation, scalings=scalings)
         unlock(rnglock)
-        refit!(model)
+        refit!(model; progress=false)
         (
          objective = model.objective,
          σ = model.σ,

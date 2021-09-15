@@ -9,7 +9,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
-    m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy)
+    m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy, progress=false)
     rm1 = resample!(StableRNG(42), deepcopy(m1))
     # test marking as not fit
     @test_logs (:warn,) show(io, rm1)
@@ -51,7 +51,7 @@ end
 @testset "GLMM" begin
     cbpp = MixedModels.dataset(:cbpp)
     gm1 = fit(MixedModel, @formula((incid/hsz) ~ 1 + period + (1|herd)),
-              cbpp, Binomial(); wts=cbpp.hsz, fast=true)
+              cbpp, Binomial(); wts=cbpp.hsz, fast=true, progress=false)
 
     @test_throws MethodError nonparametricbootstrap(1, gm1)
     @test_throws MethodError resample!(gm1)
