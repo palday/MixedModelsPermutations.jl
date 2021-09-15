@@ -85,7 +85,7 @@ function nonparametricbootstrap(
         lock(rnglock)
         model = resample!(rng, model; β=β, blups=blups, resids=resids, scalings=scalings)
         unlock(rnglock)
-        refit!(model)
+        refit!(model; progress=false)
         (
          objective = model.objective,
          σ = model.σ,
