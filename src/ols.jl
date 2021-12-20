@@ -125,15 +125,32 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:inflated_identit
 end
 
 """
-    residuals(model::LinearMixedModel, blups)
+    MixedModels.residuals(model::LinearMixedModel, blups)
+
+Compute the residuals of a mixed model, **ignoring blups**.
+
+This a convenience function to allow [`nonparametricboostrap`](@ref) and
+[`permutation`](@ref) to always assume that the keyword argument
+`residual_method` is a two-argument method.
+
+!!! warning
+    This method is currently being pirated from MixedModels.jl and will
+    probably be renamed or removed in a future release.
+"""
+MixedModels.residuals(model::LinearMixedModel, blups::Vector) = residuals(model)
+# XXX This is kinda type piracy, if it weren't developed by one of the MixedModels.jl devs....
+
+
+"""
+
+    residuals_from_blups(model::LinearMixedModel{T}, blups::Vector{<:AbstractMatrix{T}})
 
 Compute the residuals of a mixed model using the specified group-level BLUPs/predictors.
 
 This is useful for, e.g., comparing the residuals from a mixed-effects model with shrunken
 group-level predictors against a non-shrunken classical OLS model fit within each group.
 """
-function MixedModels.residuals(model::LinearMixedModel{T}, blups::Vector{<:AbstractMatrix{T}}) where T
-    # XXX This is kinda type piracy, if it weren't developed by one of the MixedModels.jl devs....
+function residuals_from_blups(model::LinearMixedModel{T}, blups::Vector{<:AbstractMatrix{T}}) where T
 
     y = response(model) # we are now modifying the model
 

@@ -39,7 +39,7 @@ as arguments. If you wish to ignore the BLUPs as computed with `blup_method`, th
 the second argument, but you can simply not use it in your function.
 
 `inflation_method` is a three-argument function (model, BLUPs as computed by `blup_method`,
-residuals computed by `residual_method`) for computing the inflation factor passed onto [`permute!`](@ref).
+residuals computed by `residual_method`) for computing the inflation factor passed onto [`resample!`](@ref).
 
 # Method
 
@@ -56,7 +56,7 @@ function nonparametricbootstrap(
     use_threads::Bool=false,
     hide_progress=false,
     β=coef(morig),
-    residual_method=residuals,
+    residual_method=residuals_from_blups,
     blup_method=ranef,
     inflation_method=inflation_factor,
 ) where {T}
