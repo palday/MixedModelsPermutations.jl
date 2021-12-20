@@ -14,9 +14,12 @@ m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy
 @testset "olsranef" begin
     # for a balanced design with one blocking variable, these methods should
     # give the same results
-    @test all(only(olsranef(m1, :stratum)) .≈ only(olsranef(m1, :simultaneous)))
+    stratum = only(olsranef(m1, :stratum))
+    simultaneous = only(olsranef(m1, :simultaneous))
+    inflated_identity =  only(olsranef(m1, :inflated_identity))
+    @test all(isapprox.(stratum, simultaneous))
+    @test all(isapprox.(stratum, inflated_identity; atol=1e-4))
 end
-
 
 @testset "residuals" begin
     @test residuals(m1) ≈ residuals(m1, ranef(m1))
