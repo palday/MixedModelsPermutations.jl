@@ -33,6 +33,14 @@ However, if the design matrix for the random effects is rank deficient (e.g., th
 of `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
 See [`olsranef`](@ref) and `MixedModels.ranef` for more information.
 
+`residual_method` provides options for how observation-level residuals are passed for permuation.
+This should be a two-argument function, taking the model and the BLUPs (as computed with `blup_method`)
+as arguments. If you wish to ignore the BLUPs as computed with `blup_method`, then you still need
+the second argument, but you can simply not use it in your function.
+
+`inflation_method` is a three-argument function (model, BLUPs as computed by `blup_method`,
+residuals computed by `residual_method`) for computing the inflation factor passed onto [`permute!`](@ref).
+
 # Method
 
 The method implemented here is based on the approach given in Section 3.2 of:
@@ -47,8 +55,10 @@ function nonparametricbootstrap(
     morig::LinearMixedModel{T};
     use_threads::Bool=false,
     hide_progress=false,
-    blup_method=ranef,
     β=coef(morig),
+    residual_method=residuals,
+    blup_method=ranef,
+    inflation_method=inflation_factor,
 ) where {T}
     # XXX should we allow specifying betas and blups?
     #     if so, should we use residuals computed based on those or the observed ones?
@@ -60,9 +70,9 @@ function nonparametricbootstrap(
     rank = length(β_names)
 
     blups = blup_method(morig)
-    resids = residuals(morig)#, blups)
+    resids = residual_method(morig, blups)
     reterms = morig.reterms
-    scalings = inflation_factor(morig, blups, resids)
+    scalings = inflation_method(morig, blups, resids)
     # we need arrays of these for in-place operations to work across threads
     m_threads = [m]
     βsc_threads = [βsc]
