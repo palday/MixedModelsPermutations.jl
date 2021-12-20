@@ -27,7 +27,8 @@ function inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(
     inflation = map(zip(m.reterms, blups)) do (trm, re)
         # inflation
         λmle =  trm.λ * σ                               # L_R in CGR
-        λemp = cholesky(cov(re'; corrected=false)).L    # L_S in CGR
+        chol = cholesky(cov(re'; corrected=false, Val(true)); check=false)
+        λemp = chol.L[chol.p, :]    # L_S in CGR
         # no transpose because the RE are transposed relativ to CGR
         λmle \ λemp
     end
