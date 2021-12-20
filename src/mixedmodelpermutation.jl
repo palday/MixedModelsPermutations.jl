@@ -25,8 +25,8 @@ and correlations of the random-effects terms.
 """
 struct MixedModelPermutation{T<:AbstractFloat} <: MixedModels.MixedModelFitCollection{T}
     fits::Vector
-    λ::Vector{<:Union{LowerTriangular{T,Matrix{T}},Diagonal{T,Vector{T}}}}
-    inds::Vector{Vector{Int}}
+    λ::Vector{<:Union{LowerTriangular{T},Diagonal{T}}}
+    inds::Vector{Vector{Int}} # XXX should this be explicitly Int64 or <:Integer?
     lowerbd::Vector{T}
     fcnames::NamedTuple
 end
