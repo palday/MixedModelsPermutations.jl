@@ -96,7 +96,8 @@ function nonparametricbootstrap(
     end
     MixedModelBootstrap(
         samp,
-        deepcopy(morig.λ),
+        # XXX I think I messed up contravariance in upstream....
+        convert(Vector{Union{LowerTriangular{T}, Diagonal{T}}}, deepcopy(morig.λ)),
         getfield.(morig.reterms, :inds),
         copy(morig.optsum.lowerbd),
         NamedTuple{Symbol.(fnames(morig))}(map(t -> (t.cnames...,), morig.reterms)),
