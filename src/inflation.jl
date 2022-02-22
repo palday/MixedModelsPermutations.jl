@@ -27,8 +27,33 @@ function inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(
     inflation = map(zip(m.reterms, blups)) do (trm, re)
         # inflation
         λmle =  trm.λ * σ                               # L_R in CGR
-        chol = cholesky(cov(re'; corrected=false), Val(true); check=false)
-        L = chol.L[invperm(chol.p), :]
+        cov_mat = cov(re'; corrected=false)
+
+        chol = cholesky(cov_mat, Val(true); check=false)
+
+        # ATTEMPT 0
+        L = chol.L[invperm(chol.p), invperm(chol.p)]
+
+        # ATTEMPT 1
+        # L = if chol.rank != size(cov_mat, 1)
+        #     pivoted_out = (chol.rank + 1):lastindex(chol.p)
+        #     ip = invperm(chol.p)
+        #     L = chol.L[invperm(chol.p), invperm(chol.p)]
+        #     L[pivoted_out, pivoted_out] += 1e-5
+        #     L
+        # else
+        #     chol.L
+        # end
+
+        #  ATTEMPT 2
+        #  while chol.rank != size(cov_mat, 1)
+        #     idx = chol.p[chol.rank+1]
+        #     cov_mat[idx, idx] += 1e-5
+        #     chol = cholesky(cov_mat, Val(true); check=false)
+        # end
+        # L = chol.L
+
+
         istril(L) || error("Tell @palday that the pivoting isn't working")
         λemp = LowerTriangular(L)    # L_S in CGR
         # no transpose because the RE are transposed relativ to CGR
