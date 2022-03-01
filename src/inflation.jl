@@ -63,5 +63,5 @@ function inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(
         return λmle / λemp
     end
 
-    return [(σ / σres) * inflation; σ / σres]
+    return [inflation; σ / σres]
 end
