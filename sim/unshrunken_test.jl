@@ -66,7 +66,7 @@ let
                 # assumes that we have exactly 2 blocking vars
                 scalings = [I, I, 1]
             end
-            sample_func(rng, m_new; β, blups, resids, scalings)
+            sample_func(rng, m_new; model.β, blups, resids, scalings)
 
             refit!(m_new; progress=false)
             push!(samps, (; iter=p, σ=m_new.σ, β=m_new.β ))
@@ -111,3 +111,6 @@ let
         return fig
     end
 end
+
+simulate_and_plot(morig, "yes", 200; sample_func=MixedModelsPermutations.resample!)
+simulate_and_plot(morig, "yes", 200; sample_func=MixedModelsPermutations.permute!)
