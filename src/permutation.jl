@@ -282,8 +282,6 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
 end
 
 
-permutationtest(perm::MixedModelPermutation, model::LinearMixedModel) = permutationtest(perm::MixedModelPermutation, model, :twosided)
-
 """
     permutationtest(perm::MixedModelPermutation, model, type=:greater)
 
