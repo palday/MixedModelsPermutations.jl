@@ -268,7 +268,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
 
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        mul!(y, trm, inflation* newre, one(T), one(T))
+        mul!(y, trm, inflation*newre, one(T), one(T))
 	#mul!(y,trm,newre,one(T),one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
@@ -282,7 +282,7 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
 end
 
 
-permutationtest(perm::MixedModelPermutation, model::LinearMixedModel) = permutationtest_be(perm::MixedModelPermutation, model, :twosided)
+permutationtest(perm::MixedModelPermutation, model::LinearMixedModel) = permutationtest(perm::MixedModelPermutation, model, :twosided)
 
 """
     permutationtest(perm::MixedModelPermutation, model, type=:greater)
