@@ -18,50 +18,29 @@ variability. The factor is on the standard deviation scale (lower Cholesky facto
 in the case of vector-valued random effects).
 """
 function inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(m))
-# FIXME I'm not sure this is correct
-#       the nonparametric bootstrap underestimates variance components
-#       compared to the parametricbootstrap
-
     σ = sdest(m)
     σres = std(resids; corrected=false)
-    inflation = map(zip(m.reterms, blups)) do (trm, re)
+      inflation = map(zip(m.reterms, blups)) do (trm, re)
         # inflation
-        λmle =  trm.λ * σ                               # L_R in CGR
-        cov_mat = cov(re'; corrected=false)
+        λmle =  trm.λ * σ                              # L_R in CGR
 
-        chol = cholesky(cov_mat, Val(true); check=false)
-
-        # ATTEMPT 0
-        # L = chol.L[invperm(chol.p), invperm(chol.p)]
-
-        # ATTEMPT 1
-        # L = if chol.rank != size(cov_mat, 1)
-        #     pivoted_out = (chol.rank + 1):lastindex(chol.p)
-        #     ip = invperm(chol.p)
-        #     L = chol.L[ip, ip]
-        #     L[pivoted_out, pivoted_out] .+= 1e-5
-        #     L
-        # else
-        #     chol.L
-        # end
+        cov_emp = StatsBase.cov(re'; corrected=false)
+                
+        chol = cholesky(cov_emp, Val(true); check=false,tol=10^-5)
 
         #  ATTEMPT 2
-         while chol.rank != size(cov_mat, 1)
+         while chol.rank != size(cov_emp, 1)
+             #@info "rep"
             idx = chol.p[(chol.rank+1):end]
-            cov_mat[idx, idx] .+= 1e-5
-            chol = cholesky(cov_mat, Val(true); check=false)
+            cov_emp[idx, idx] .+= 1e-6
+            chol = cholesky(cov_emp, Val(true); check=false,tol=10^-5)
         end
-        L = chol.L
-
-        if !istril(L)
-            println("L = ")
-            display(L)
-            error("Tell @palday that the pivoting isn't working")
-        end
-        λemp = LowerTriangular(L)    # L_S in CGR
-        # no transpose because the RE are transposed relativ to CGR
-        return λmle / λemp
+        
+        L = chol.L[invperm(chol.p),:]
+        cov_emp = L * L'
+        cov_mle = λmle * λmle'
+        
+        return cov_mle / cov_emp
     end
-
     return [inflation; σ / σres]
 end

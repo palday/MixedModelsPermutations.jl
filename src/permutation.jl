@@ -269,7 +269,6 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
         mul!(y, trm, inflation*newre, one(T), one(T))
-	#mul!(y,trm,newre,one(T),one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 
@@ -325,7 +324,7 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
     for (ix,k) in enumerate(Symbol.(coefnames(model)))
         dd[k] = perms[statistic][perms.coefname .== k]
 
-        
+
         push!(dd[k],ests[k]) # simplest approximation to ensure p is never 0 (impossible for permutation test)
         if type == :twosided
             # in case of testing the betas, H0 might be not β==0, therefore we have to remove it here first before we can abs
@@ -339,18 +338,18 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
               dd[k]  .= abs.(dd[k])
               ests[k] = abs(ests[k])
         end
- 
-        
+
+
     end
 
-    # short way to calculate: 
+    # short way to calculate:
     # b = sum.(abs.(permDist).>=abs.(testValue)); (twosided)
     # Includes the conservative correction for approximate permutation tests
-    # p_t = (b+1)/(nperm+1); 
+    # p_t = (b+1)/(nperm+1);
 
     # (with comp being <=) Note that sum(<=(ests),v) does the same as  sum(v .<=ests) (thus "reversed" arguments in the first bracket)
     results = (; (k=> sum(comp(ests[k]),v)/length(v) for (k,v) in dd)...)
     #results = (; (k => (1+sum(comp(ests[k]),v))/(1+length(v)) for (k,v) in dd)...)
-    
+
     return results
 end
