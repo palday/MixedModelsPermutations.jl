@@ -50,14 +50,16 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     end
 
     @testset "permutationtest" begin
-        # the total area above and below the observed value should equal 1
+        # the total area above and below the observed value should be slightly greater than 1
+        # Why slightly greater? because we use the approximation to include the actual datapoint
+        # so that a p-value can never be p==0 but at most p == 1/(nperm+1)
         @test all(map(sum,
                   zip(permutationtest(perm, m1, type=:lesser),
-                      permutationtest(perm, m1, type=:greater))) .== 1)
+                      permutationtest(perm, m1, type=:greater))) .≈ (1+1/1001))
 
-        # we should have a p-value near 1 since our null distribution
+        # we should have a p-value > 0.05 since our null distribution
         # was generated from value being tested...
-        @test first(permutationtest(perm, m1)) > 0.95
+        @test first(permutationtest(perm, m1)) > 0.05
         # we should have a p-value near 0 since this effect is clear
         @test last(permutationtest(perm, m1)) <= 1 / 1000
         @test_throws ArgumentError permutationtest(perm, m1, type=:bad)
