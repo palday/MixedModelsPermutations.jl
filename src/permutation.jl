@@ -22,7 +22,7 @@ The default random number generator is `Random.GLOBAL_RNG`.
 
 !!! note
     Note that `use_threads=true` may not offer a performance boost and may even
-    decrease peformance if multithreaded linear algebra (BLAS) routines are available.
+    decrease performance if multithreaded linear algebra (BLAS) routines are available.
     In this case, threads at the level of the linear algebra may already occupy all
     processors/processor cores. There are plans to provide better support in coordinating
     Julia- and BLAS-level threads in the future.
@@ -46,7 +46,7 @@ However, if the design matrix for the random effects is rank deficient (e.g., th
 of `MixedModels.fulldummy` or missing cells in the data), then this method will fail.
 See [`olsranef`](@ref) and `MixedModels.ranef` for more information.
 
-`residual_method` provides options for how observation-level residuals are passed for permuation.
+`residual_method` provides options for how observation-level residuals are passed for permutation.
 This should be a two-argument function, taking the model and the BLUPs (as computed with `blup_method`)
 as arguments. If you wish to ignore the BLUPs as computed with `blup_method`, then you still need
 the second argument, but you can simply not use it in your function.
