@@ -25,21 +25,21 @@ function inflation_factor(m::LinearMixedModel, blups=ranef(m), resids=residuals(
         λmle =  trm.λ * σ                              # L_R in CGR
 
         cov_emp = StatsBase.cov(re'; corrected=false)
-                
-        chol = cholesky(cov_emp, Val(true); check=false,tol=10^-5)
+
+        chol = cholesky(cov_emp, RowMaximum(); check=false,tol=10^-5)
 
         #  ATTEMPT 2
          while chol.rank != size(cov_emp, 1)
              #@info "rep"
             idx = chol.p[(chol.rank+1):end]
             cov_emp[idx, idx] .+= 1e-6
-            chol = cholesky(cov_emp, Val(true); check=false,tol=10^-5)
+            chol = cholesky(cov_emp, RowMaximum(); check=false,tol=10^-5)
         end
-        
+
         L = chol.L[invperm(chol.p),:]
         cov_emp = L * L'
         cov_mle = λmle * λmle'
-        
+
         return cov_mle / cov_emp
     end
     return [inflation; σ / σres]
