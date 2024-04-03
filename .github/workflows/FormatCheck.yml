@@ -44,8 +44,9 @@ jobs:
         run: |
           using JuliaFormatter
           format(["src", "test", "docs"], YASStyle(); verbose=true)
-      # Add formatting suggestions to non-draft PRs even if when "Check formatting" fails
+      # Add formatting suggestions to non-draft PRs when "Check formatting" fails
       - uses: reviewdog/action-suggester@v1
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
         with:
           tool_name: JuliaFormatter
+          fail_on_error: true
