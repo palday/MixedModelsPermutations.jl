@@ -5,6 +5,7 @@
 [![Dev Docs][docs-dev-img]][docs-dev-url]
 [![Codecov](https://codecov.io/gh/palday/MixedModelsPermutations.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/palday/MixedModelsPermutations.jl)
 [![DOI](https://zenodo.org/badge/337080334.svg)](https://zenodo.org/badge/latestdoi/337080334)
+[![Code Style: YAS](https://img.shields.io/badge/code%20style-yas-1fdcb3.svg)](https://github.com/jrevels/YASGuide)
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://palday.github.io/MixedModelsPermutations.jl/dev
