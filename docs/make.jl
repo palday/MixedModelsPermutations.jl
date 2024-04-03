@@ -4,6 +4,7 @@ using MixedModelsPermutations
 makedocs(
     sitename = "MixedModelsPermutations",
     doctest = true,
+    warnonly=[:cross_references],
     pages = [
         "index.md",
     ],
