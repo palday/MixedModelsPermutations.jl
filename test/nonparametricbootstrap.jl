@@ -9,7 +9,8 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
-    m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy, progress=false)
+    m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days | subj)), sleepstudy;
+             progress=false)
     rm1 = resample!(StableRNG(42), deepcopy(m1))
     # test marking as not fit
     @test_logs (:warn,) show(io, rm1)
@@ -39,7 +40,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     end
 
     let sigma = filter(:type => ==("σ"), nondf)
-        sigs = [ MixedModels.σs(m1).subj...; m1.σ ]
+        sigs = [MixedModels.σs(m1).subj...; m1.σ]
 
         violations = count(zip(sigs, sigma.lower, sigma.upper)) do (b, lower, upper)
             return !(0 <= lower <= b <= upper)
@@ -50,7 +51,7 @@ end
 
 @testset "GLMM" begin
     cbpp = MixedModels.dataset(:cbpp)
-    gm1 = fit(MixedModel, @formula((incid/hsz) ~ 1 + period + (1|herd)),
+    gm1 = fit(MixedModel, @formula((incid / hsz) ~ 1 + period + (1 | herd)),
               cbpp, Binomial(); wts=cbpp.hsz, fast=true, progress=false)
 
     @test_throws MethodError nonparametricbootstrap(1, gm1)

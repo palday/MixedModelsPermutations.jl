@@ -37,22 +37,21 @@ A novel bootstrap procedure for assessing the relationship between class size an
 Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431-443.
 https://doi.org/10.1111/1467-9876.00415
 """
-function nonparametricbootstrap(
-    rng::AbstractRNG,
-    n::Integer,
-    morig::LinearMixedModel{T};
-    progress=true,
-    β=coef(morig),
-    residual_method=residuals_from_blups,
-    blup_method=ranef,
-    inflation_method=inflation_factor) where {T}
+function nonparametricbootstrap(rng::AbstractRNG,
+                                n::Integer,
+                                morig::LinearMixedModel{T};
+                                progress=true,
+                                β=coef(morig),
+                                residual_method=residuals_from_blups,
+                                blup_method=ranef,
+                                inflation_method=inflation_factor) where {T}
     # XXX should we allow specifying betas and blups?
     #     if so, should we use residuals computed based on those or the observed ones?
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
     model = deepcopy(morig)
 
-    β_names = (Symbol.(fixefnames(morig))..., )
+    β_names = (Symbol.(fixefnames(morig))...,)
 
     blups = blup_method(morig)
     resids = residual_method(morig, blups)
@@ -61,22 +60,20 @@ function nonparametricbootstrap(
     samp = replicate(n; progress) do
         model = resample!(rng, model; β=β, blups=blups, resids=resids, scalings=scalings)
         refit!(model; progress=false)
-        (
-         objective = model.objective,
-         σ = model.σ,
-         β = NamedTuple{β_names}(fixef!(βsc, model)),
-         se = SVector{p,T}(stderror!(βsc, model)),
-         θ = SVector{k,T}(getθ!(θsc, model)),
-        )
+        return (objective=model.objective,
+                σ=model.σ,
+                β=NamedTuple{β_names}(fixef!(βsc, model)),
+                se=SVector{p,T}(stderror!(βsc, model)),
+                θ=SVector{k,T}(getθ!(θsc, model)))
     end
-    MixedModelBootstrap(
-        samp,
-        # XXX I think I messed up contravariance in upstream....
-        convert(Vector{Union{LowerTriangular{T}, Diagonal{T}}}, deepcopy(morig.λ)),
-        getfield.(morig.reterms, :inds),
-        copy(morig.optsum.lowerbd),
-        NamedTuple{Symbol.(fnames(morig))}(map(t -> (t.cnames...,), morig.reterms)),
-    )
+    return MixedModelBootstrap(samp,
+                               # XXX I think I messed up contravariance in upstream....
+                               convert(Vector{Union{LowerTriangular{T},Diagonal{T}}},
+                                       deepcopy(morig.λ)),
+                               getfield.(morig.reterms, :inds),
+                               copy(morig.optsum.lowerbd),
+                               NamedTuple{Symbol.(fnames(morig))}(map(t -> (t.cnames...,),
+                                                                      morig.reterms)))
 end
 
 function nonparametricbootstrap(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)
@@ -85,12 +82,12 @@ end
 
 function nonparametricbootstrap(rng::AbstractRNG, n::Integer,
                                 morig::GeneralizedLinearMixedModel; kwargs...)
-
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-resample!(model::LinearMixedModel, args...; kwargs...) =
-    resample!(Random.GLOBAL_RNG, model, args...; kwargs...)
+function resample!(model::LinearMixedModel, args...; kwargs...)
+    return resample!(Random.GLOBAL_RNG, model, args...; kwargs...)
+end
 
 """
     resample!([rng::AbstractRNG,] model::LinearMixedModel;
@@ -134,9 +131,8 @@ https://doi.org/10.1111/1467-9876.00415
 function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
                    β=coef(model),
                    blups=ranef(model),
-                   resids=residuals(model,blups),
+                   resids=residuals(model, blups),
                    scalings=inflation_factor(model)) where {T}
-
     reterms = model.reterms
     y = response(model) # we are now modifying the model
 
@@ -150,8 +146,8 @@ function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
         npreds, ngrps = size(re)
         # sampling with replacement
         samp = sample(rng, 1:ngrps, ngrps; replace=true)
-         # allocate now to avoid allocating later
-         # while taking advantage of LowerTriangular lmul!
+        # allocate now to avoid allocating later
+        # while taking advantage of LowerTriangular lmul!
         newre = re[:, samp]
 
         # this just multiplies the Z matrices by the BLUPs

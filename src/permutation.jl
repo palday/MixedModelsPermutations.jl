@@ -77,24 +77,22 @@ https://doi.org/10.1016/j.neuroimage.2014.01.060
     This method has serious limitations for singular models because sign-flipping a zero
     is not an effective randomization technique.
 """
-function permutation(
-    rng::AbstractRNG,
-    n::Integer,
-    morig::LinearMixedModel{T};
-    progress=true,
-    β::AbstractVector{T}=zeros(T, length(coef(morig))),
-    residual_permutation=:signflip,
-    residual_method=residuals,
-    blup_method=ranef,
-    inflation_method=inflation_factor,
-) where {T}
+function permutation(rng::AbstractRNG,
+                     n::Integer,
+                     morig::LinearMixedModel{T};
+                     progress=true,
+                     β::AbstractVector{T}=zeros(T, length(coef(morig))),
+                     residual_permutation=:signflip,
+                     residual_method=residuals,
+                     blup_method=ranef,
+                     inflation_method=inflation_factor,) where {T}
     # XXX instead of straight zeros,
     #     should we use 1-0s for intercept only?
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
     model = deepcopy(morig)
 
-    β_names = (Symbol.(fixefnames(morig))..., )
+    β_names = (Symbol.(fixefnames(morig))...,)
     rank = length(β_names)
 
     blups = blup_method(morig)
@@ -105,21 +103,18 @@ function permutation(
         model = permute!(rng, model; β=β, blups=blups, resids=resids,
                          residual_permutation=residual_permutation, scalings=scalings)
         refit!(model; progress=false)
-        (
-         objective = model.objective,
-         σ = model.σ,
-         β = NamedTuple{β_names}(fixef!(βsc, model)),
-         se = SVector{p,T}(stderror!(βsc, model)),
-         θ = SVector{k,T}(getθ!(θsc, model)),
-        )
+        return (objective=model.objective,
+                σ=model.σ,
+                β=NamedTuple{β_names}(fixef!(βsc, model)),
+                se=SVector{p,T}(stderror!(βsc, model)),
+                θ=SVector{k,T}(getθ!(θsc, model)))
     end
-    MixedModelPermutation(
-        samp,
-        deepcopy(morig.λ),
-        getfield.(morig.reterms, :inds),
-        copy(morig.optsum.lowerbd),
-        NamedTuple{Symbol.(fnames(morig))}(map(t -> (t.cnames...,), morig.reterms)),
-    )
+    return MixedModelPermutation(samp,
+                                 deepcopy(morig.λ),
+                                 getfield.(morig.reterms, :inds),
+                                 copy(morig.optsum.lowerbd),
+                                 NamedTuple{Symbol.(fnames(morig))}(map(t -> (t.cnames...,),
+                                                                        morig.reterms)))
 end
 
 function permutation(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)
@@ -130,9 +125,9 @@ function permutation(::AbstractRNG, ::Integer, ::GeneralizedLinearMixedModel; kw
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 
-
-permute!(model::LinearMixedModel, args...; kwargs...) =
-    permute!(Random.GLOBAL_RNG, model, args...; kwargs...)
+function permute!(model::LinearMixedModel, args...; kwargs...)
+    return permute!(Random.GLOBAL_RNG, model, args...; kwargs...)
+end
 
 """
     permute!([rng::AbstractRNG,] model::LinearMixedModel;
@@ -206,10 +201,9 @@ https://doi.org/10.1016/j.neuroimage.2014.01.060
 function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
                   β::AbstractVector{T}=zeros(T, length(coef(model))),
                   blups=ranef(model),
-                  resids=residuals(model,blups),
+                  resids=residuals(model, blups),
                   residual_permutation=:signflip,
                   scalings=inflation_factor(model)) where {T}
-
     reterms = model.reterms
     y = response(model) # we are now modifying the model
     copy!(y, resids)
@@ -219,8 +213,8 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
 
     if residual_permutation == :shuffle
         shuffle!(rng, y)
-    elseif  residual_permutation == :signflip
-        y .*= rand(rng, (-1,1), length(y))
+    elseif residual_permutation == :signflip
+        y .*= rand(rng, (-1, 1), length(y))
     else
         throw(ArgumentError("Invalid: residual permutation method: $(residual_permutation)"))
     end
@@ -228,11 +222,11 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
     for (inflation, re, trm) in zip(scalings, blups, reterms)
         npreds, ngrps = size(re)
         # sign flipping
-        newre = re * diagm(rand(rng, (-1,1), ngrps))
+        newre = re * diagm(rand(rng, (-1, 1), ngrps))
 
         # this just multiplies the Z matrices by the BLUPs
         # and add that to y
-        mul!(y, trm, inflation*newre, one(T), one(T))
+        mul!(y, trm, inflation * newre, one(T), one(T))
         # XXX inflation is resampling invariant -- should we move it out?
     end
 
@@ -243,7 +237,6 @@ function permute!(rng::AbstractRNG, model::LinearMixedModel{T};
 
     return model
 end
-
 
 """
     permutationtest(perm::MixedModelPermutation, model, type=:greater)
@@ -260,12 +253,13 @@ To account for finite permutations, we implemented the conservative method from 
  http://www.statsci.org/webguide/smyth/pubs/permp.pdf 
 
 """
-function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosided,β::AbstractVector=zeros(length(coef(model))), statistic=:z)
+function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosided,
+                         β::AbstractVector=zeros(length(coef(model))), statistic=:z)
     #@warn """This method is known not to be fully correct.
     #         The interface for this functionality will likely change drastically in the near future."""
     # removed due to distributed run
 
-    if type == :greater || type  == :twosided
+    if type == :greater || type == :twosided
         comp = >=
     elseif type == :lesser
         comp = <=
@@ -274,36 +268,34 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
     end
     if statistic == :z
         x = coeftable(model)
-        ests = Dict(Symbol(k) => v for (k,v) in zip(coefnames(model), x.cols[x.teststatcol]))
+        ests = Dict(Symbol(k) => v
+                    for (k, v) in zip(coefnames(model), x.cols[x.teststatcol]))
     elseif statistic == :β
-        ests = Dict(Symbol(k) => v for (k,v) in zip(coefnames(model), coef(model)))
+        ests = Dict(Symbol(k) => v for (k, v) in zip(coefnames(model), coef(model)))
     else
         error("statistic not implemented yet")
     end
 
     perms = columntable(perm.coefpvalues)
 
-    dd = Dict{Symbol, Vector}()
+    dd = Dict{Symbol,Vector}()
 
-    for (ix,k) in enumerate(Symbol.(coefnames(model)))
+    for (ix, k) in enumerate(Symbol.(coefnames(model)))
         dd[k] = perms[statistic][perms.coefname .== k]
 
-
-        push!(dd[k],ests[k]) # simplest approximation to ensure p is never 0 (impossible for permutation test)
+        push!(dd[k], ests[k]) # simplest approximation to ensure p is never 0 (impossible for permutation test)
         if type == :twosided
             # in case of testing the betas, H0 might be not β==0, therefore we have to remove it here first before we can abs
             # the "z's" are already symmetric around 0 regardless of hypothesis.
             if statistic == :β
                 #println(β[ix])
-                dd[k]  .= dd[k]  .- β[ix]
+                dd[k] .= dd[k] .- β[ix]
                 ests[k] = ests[k] - β[ix]
             end
 
-              dd[k]  .= abs.(dd[k])
-              ests[k] = abs(ests[k])
+            dd[k] .= abs.(dd[k])
+            ests[k] = abs(ests[k])
         end
-
-
     end
 
     # short way to calculate:
@@ -312,7 +304,7 @@ function permutationtest(perm::MixedModelPermutation, model; type::Symbol=:twosi
     # p_t = (b+1)/(nperm+1);
 
     # (with comp being <=) Note that sum(<=(ests),v) does the same as  sum(v .<=ests) (thus "reversed" arguments in the first bracket)
-    results = (; (k=> sum(comp(ests[k]),v)/length(v) for (k,v) in dd)...)
+    results = (; (k => sum(comp(ests[k]), v) / length(v) for (k, v) in dd)...)
     #results = (; (k => (1+sum(comp(ests[k]),v))/(1+length(v)) for (k,v) in dd)...)
 
     return results
