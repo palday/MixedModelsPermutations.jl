@@ -1,6 +1,6 @@
 name = "MixedModelsPermutations"
 uuid = "647c4018-d7ef-4d03-a0cc-8889a722319e"
-authors = ["Phillip Alday <me@phillipalday.com> and contributors"]
+authors = ["Phillip Alday <me@phillipalday.com>", "Benedikt Ehinger <science@benediktehinger.de>", "Jaromil Frossard <jaromil.frossard@gmail.com>"]
 version = "0.2.0"
 
 [deps]
