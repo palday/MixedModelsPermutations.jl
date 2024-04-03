@@ -8,7 +8,7 @@ using Test
 isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
 sleepstudy = MixedModels.dataset(:sleepstudy)
-m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy)
+m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy; progress=false)
 
 # TODO: add in testset showing that the OLS ranef match OLS fit to each participant
 @testset "olsranef" begin
