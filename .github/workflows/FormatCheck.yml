@@ -16,7 +16,7 @@
           - ".github/workflows/FormatCheck.yml"
     jobs:
       format-check:
-        name: Julia
+        name: YASStyle
         # These permissions are needed to:
         # - Delete old caches: https://github.com/julia-actions/cache#usage
         # - Post formatting suggestions: https://github.com/reviewdog/action-suggester#required-permissions
