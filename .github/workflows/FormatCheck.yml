@@ -43,7 +43,7 @@
             shell: julia --project=@format --color=yes {0}
             run: |
               using JuliaFormatter
-              format(".", YASStyle(); verbose=true) || exit(1)
+              format(["src", "test", "docs"], YASStyle(); verbose=true) || exit(1)
           # Add formatting suggestions to non-draft PRs even if when "Check formatting" fails
           - uses: reviewdog/action-suggester@v1
             if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
