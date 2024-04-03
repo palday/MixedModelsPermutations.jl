@@ -1,4 +1,7 @@
-name: continuous-integration
+name: CI
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 on:
   push:
     branches:
@@ -22,23 +25,16 @@ jobs:
         os: [ubuntu-20.04] # macos-10.15, windows-2019
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Julia Setup
         uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - name: Cache
-        uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
+        uses: julia-actions/cache@v1
         with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
+          cache-compiled: "true"        
       - name: Build
         uses: julia-actions/julia-buildpkg@v1
       - name: Test
@@ -47,9 +43,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Coverage Process
         uses: julia-actions/julia-processcoverage@v1
-        if:  ${{ startsWith(matrix.os, 'ubuntu') && (matrix.version == '1') }}
       - name: Coverage Upload
-        uses: codecov/codecov-action@v1
-        if:  ${{ startsWith(matrix.os, 'ubuntu') && (matrix.version == '1') }}
+        uses: codecov/codecov-action@v4
         with:
           file: lcov.info
