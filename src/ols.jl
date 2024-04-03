@@ -45,7 +45,6 @@ function olsranef(model::LinearMixedModel{T}, method=:simultaneous; kwargs...) w
 end
 
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where {T}
-
     blups = Vector{Matrix{T}}()
     for trm in model.reterms
         re = []
@@ -58,7 +57,7 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where 
         j = 1
         for r in refs
             i = trm.refs .== r
-            X = trm[i, j:(j+npreds-1)]
+            X = trm[i, j:(j + npreds - 1)]
             b = (X'X) \ (X'fixef_res[i])
             push!(re, b)
             j += npreds
@@ -69,7 +68,6 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) where 
 
     return blups
 end
-
 
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
     n_reterms = size(model.reterms)[1]
@@ -101,7 +99,7 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) w
         chunksize = size(trm, 2)
         ngrps = length(trm.levels)
         npreds = length(trm.cnames)
-        re = Matrix{T}(reshape(view(flatblups, offset:(offset+chunksize-1)),
+        re = Matrix{T}(reshape(view(flatblups, offset:(offset + chunksize - 1)),
                                npreds, ngrps))
         offset += chunksize
         push!(blups, re)
@@ -111,7 +109,6 @@ end
 
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:inflated_identity};
                   θref=1000 .* model.optsum.initial) where {T}
-
     blups = try
         ranef(updateL!(setθ!(model, θref)))
     catch e
@@ -140,7 +137,6 @@ This a convenience function to allow [`nonparametricboostrap`](@ref) and
 MixedModels.residuals(model::LinearMixedModel, blups::Vector) = residuals(model)
 # XXX This is kinda type piracy, if it weren't developed by one of the MixedModels.jl devs....
 
-
 """
 
     residuals_from_blups(model::LinearMixedModel{T}, blups::Vector{<:AbstractMatrix{T}})
@@ -150,8 +146,8 @@ Compute the residuals of a mixed model using the specified group-level BLUPs/pre
 This is useful for, e.g., comparing the residuals from a mixed-effects model with shrunken
 group-level predictors against a non-shrunken classical OLS model fit within each group.
 """
-function residuals_from_blups(model::LinearMixedModel{T}, blups::Vector{<:AbstractMatrix{T}}) where T
-
+function residuals_from_blups(model::LinearMixedModel{T},
+                              blups::Vector{<:AbstractMatrix{T}}) where {T}
     y = response(model) # we are now modifying the model
 
     ŷ = zeros(T, length(y))

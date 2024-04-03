@@ -29,7 +29,7 @@ give the same results.
     the use of `MixedModels.fulldummy` or missing cells in the data), then these
     methods will fail because no shrinkage/regularization is applied.
 """
-function olsranef(model::LinearMixedModel{T}, method=:simultaneous) where {T}
+function olsranef(model::LinearMixedModel{T}, method = :simultaneous) where {T}
     fixef_res = copy(response(model))
     # what's not explained by the fixed effects has to be explained by the RE
     X = model.X
@@ -68,9 +68,9 @@ function olsranef_org(model::LinearMixedModel{T}, fixef_res, ::Val{:stratum}) wh
 end
 
 function dummy_scalings(reterms)
-     scalings = repeat([LinearAlgebra.I],length(reterms))
-      scalings = vcat(scalings,1.) # add sigma scaling
-      return scalings
+    scalings = repeat([LinearAlgebra.I], length(reterms))
+    scalings = vcat(scalings, 1.0) # add sigma scaling
+    return scalings
 
 end
 function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) where {T}
@@ -103,12 +103,11 @@ function olsranef(model::LinearMixedModel{T}, fixef_res, ::Val{:simultaneous}) w
         chunksize = size(trm, 2)
         ngrps = length(trm.levels)
         npreds = length(trm.cnames)
-        re = Matrix{T}(reshape(view(flatblups, offset:(offset+chunksize-1)),
-                               npreds, ngrps))
+        re = Matrix{T}(reshape(view(flatblups, offset:(offset+chunksize-1)), npreds, ngrps))
         offset += chunksize
         push!(blups, re)
     end
-    
+
     return blups, dummy_scalings(model.reterms)
 end
 
@@ -120,7 +119,10 @@ Compute the residuals of a mixed model using the specified group-level BLUPs/pre
 This is useful for, e.g., comparing the residuals from a mixed-effects model with shrunken
 group-level predictors against a non-shrunken classical OLS model fit within each group.
 """
-function MixedModels.residuals(model::LinearMixedModel{T}, blups::Vector{<:AbstractMatrix{T}}) where T
+function MixedModels.residuals(
+    model::LinearMixedModel{T},
+    blups::Vector{<:AbstractMatrix{T}},
+) where {T}
     # XXX This is kinda type piracy, if it weren't developed by one of the MixedModels.jl devs....
 
     y = response(model) # we are now modifying the model

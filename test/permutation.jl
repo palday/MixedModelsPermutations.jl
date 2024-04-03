@@ -10,7 +10,8 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
 
 @testset "LMM" begin
     sleepstudy = MixedModels.dataset(:sleepstudy)
-    m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days|subj)), sleepstudy, progress=false)
+    m1 = fit(MixedModel, @formula(reaction ~ 1 + days + (1 + days | subj)), sleepstudy;
+             progress=false)
     rm1 = permute!(StableRNG(42), deepcopy(m1); residual_permutation=:signflip)
     rm1 = permute!(StableRNG(42), deepcopy(m1); residual_permutation=:shuffle)
     # test marking as not fit
@@ -20,19 +21,17 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     H0 = coef(m1)
     H0[2] = 0.0 # slope of days is 0
 
-
-    perm = permutation(StableRNG(42),1000, m1; β=H0)
+    perm = permutation(StableRNG(42), 1000, m1; β=H0, progress=false)
     @test perm isa MixedModelPermutation
     @test perm isa MixedModels.MixedModelFitCollection
 
     df = combine(groupby(DataFrame(perm.allpars), [:type, :group, :names]),
-                :value => shortestcovint => :interval)
+                 :value => shortestcovint => :interval)
 
     # our original slope should lie well outside of the null distribution
     let days = filter(df) do row
             return row.type == "β" && row.names == "days"
         end
-
         lower, upper = only(days.interval)
 
         @test coef(m1)[2] > upper
@@ -44,7 +43,6 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     let est = filter(df) do row
             return row.type == "β" && row.names == "(Intercept)"
         end
-
         lower, upper = only(est.interval)
         @test lower < first(H0) < upper
     end
@@ -54,8 +52,8 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
         # Why slightly greater? because we use the approximation to include the actual datapoint
         # so that a p-value can never be p==0 but at most p == 1/(nperm+1)
         @test all(map(sum,
-                  zip(permutationtest(perm, m1, type=:lesser),
-                      permutationtest(perm, m1, type=:greater))) .≈ (1+1/1001))
+                      zip(permutationtest(perm, m1; type=:lesser),
+                          permutationtest(perm, m1; type=:greater))) .≈ (1 + 1 / 1001))
 
         # we should have a p-value > 0.05 since our null distribution
         # was generated from value being tested...
@@ -66,17 +64,19 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     end
 
     @testset "olsranef" begin
-        permols = permutation(StableRNG(42),1000, m1; β=H0, blup_method=olsranef)
+        permols = permutation(StableRNG(42), 1000, m1; β=H0, blup_method=olsranef,
+                              progress=false)
         @test permols isa MixedModelPermutation
-        @test last(permutationtest(perm, m1, type=:greater)) ≈ last(permutationtest(permols, m1, type=:greater)) atol=0.01
-        @test last(permutationtest(perm, m1, type=:lesser)) ≈ last(permutationtest(permols, m1, type=:lesser)) atol=0.01
+        @test last(permutationtest(perm, m1; type=:greater)) ≈
+              last(permutationtest(permols, m1; type=:greater)) atol = 0.01
+        @test last(permutationtest(perm, m1; type=:lesser)) ≈
+              last(permutationtest(permols, m1; type=:lesser)) atol = 0.01
     end
-
 end
 
 @testset "GLMM" begin
     cbpp = MixedModels.dataset(:cbpp)
-    gm1 = fit(MixedModel, @formula((incid/hsz) ~ 1 + period + (1|herd)),
+    gm1 = fit(MixedModel, @formula((incid / hsz) ~ 1 + period + (1 | herd)),
               cbpp, Binomial(); wts=cbpp.hsz, fast=true, progress=false)
 
     @test_throws MethodError permutation(1, gm1)

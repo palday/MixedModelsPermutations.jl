@@ -36,4 +36,5 @@ _perm2boot(p::MixedModelPermutation)
 
 Non copying conversion to MixedModels.MixedModelBootstrap.
 """
-_perm2boot(p::MixedModelPermutation) = MixedModelBootstrap(p.fits, p.λ, p.inds, p.lowerbd, p.fcnames)
+_perm2boot(p::MixedModelPermutation) = MixedModelBootstrap(p.fits, p.λ, p.inds, p.lowerbd,
+                                                           p.fcnames)
