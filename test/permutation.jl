@@ -21,7 +21,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     H0[2] = 0.0 # slope of days is 0
 
 
-    perm = permutation(StableRNG(42),1000, m1; β=H0)
+    perm = permutation(StableRNG(42),1000, m1; β=H0, progress=false)
     @test perm isa MixedModelPermutation
     @test perm isa MixedModels.MixedModelFitCollection
 
@@ -66,7 +66,7 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     end
 
     @testset "olsranef" begin
-        permols = permutation(StableRNG(42),1000, m1; β=H0, blup_method=olsranef)
+        permols = permutation(StableRNG(42),1000, m1; β=H0, blup_method=olsranef, progress=false)
         @test permols isa MixedModelPermutation
         @test last(permutationtest(perm, m1, type=:greater)) ≈ last(permutationtest(permols, m1, type=:greater)) atol=0.01
         @test last(permutationtest(perm, m1, type=:lesser)) ≈ last(permutationtest(permols, m1, type=:lesser)) atol=0.01

@@ -18,20 +18,8 @@ The default random number generator is `Random.GLOBAL_RNG`.
 `GeneralizedLinearMixedModel` is currently unsupported.
 
 # Named Arguments
-`use_threads` determines whether or not to use thread-based parallelism.
 
-!!! note
-    Note that `use_threads=true` may not offer a performance boost and may even
-    decrease performance if multithreaded linear algebra (BLAS) routines are available.
-    In this case, threads at the level of the linear algebra may already occupy all
-    processors/processor cores. There are plans to provide better support in coordinating
-    Julia- and BLAS-level threads in the future.
-
-!!! warning
-    The PRNG shared between threads is locked using [`Threads.SpinLock`](@ref), which
-    should not be used recursively. Do not wrap `permutation` in an outer `SpinLock`.
-
-`hide_progress` can be used to disable the progress bar. Note that the progress
+`progress=false` can be used to disable the progress bar. Note that the progress
 bar is automatically disabled for non-interactive (i.e. logging) contexts.
 
 Permutation at the level of residuals can be accomplished either via sign
@@ -93,8 +81,7 @@ function permutation(
     rng::AbstractRNG,
     n::Integer,
     morig::LinearMixedModel{T};
-    use_threads::Bool=false,
-    hide_progress=false,
+    progress=true,
     β::AbstractVector{T}=zeros(T, length(coef(morig))),
     residual_permutation=:signflip,
     residual_method=residuals,
@@ -105,7 +92,7 @@ function permutation(
     #     should we use 1-0s for intercept only?
     βsc, θsc = similar(morig.β), similar(morig.θ)
     p, k = length(βsc), length(θsc)
-    m = deepcopy(morig)
+    model = deepcopy(morig)
 
     β_names = (Symbol.(fixefnames(morig))..., )
     rank = length(β_names)
@@ -114,29 +101,9 @@ function permutation(
     resids = residual_method(morig, blups)
     reterms = morig.reterms
     scalings = inflation_method(morig, blups, resids)
-    # we need arrays of these for in-place operations to work across threads
-    m_threads = [m]
-    βsc_threads = [βsc]
-    θsc_threads = [θsc]
-
-    if use_threads
-        Threads.resize_nthreads!(m_threads)
-        Threads.resize_nthreads!(βsc_threads)
-        Threads.resize_nthreads!(θsc_threads)
-    end
-    # we use locks to guarantee thread-safety, but there might be better ways to do this for some RNGs
-    # see https://docs.julialang.org/en/v1.3/manual/parallel-computing/#Side-effects-and-mutable-function-arguments-1
-    # see https://docs.julialang.org/en/v1/stdlib/Future/index.html
-    rnglock = Threads.SpinLock()
-    samp = replicate(n; use_threads=use_threads, hide_progress=hide_progress) do
-        tidx = use_threads ? Threads.threadid() : 1
-        model = m_threads[tidx]
-        local βsc = βsc_threads[tidx]
-        local θsc = θsc_threads[tidx]
-        lock(rnglock)
+    samp = replicate(n; progress) do
         model = permute!(rng, model; β=β, blups=blups, resids=resids,
                          residual_permutation=residual_permutation, scalings=scalings)
-        unlock(rnglock)
         refit!(model; progress=false)
         (
          objective = model.objective,
@@ -159,10 +126,7 @@ function permutation(nsamp::Integer, m::LinearMixedModel, args...; kwargs...)
     return permutation(Random.GLOBAL_RNG, nsamp, m, args...; kwargs...)
 end
 
-function permutation(rng::AbstractRNG, n::Integer,
-                                morig::GeneralizedLinearMixedModel;
-                                use_threads::Bool=false) where {T}
-
+function permutation(::AbstractRNG, ::Integer, ::GeneralizedLinearMixedModel; kwargs...)
     throw(ArgumentError("GLMM support is not yet implemented"))
 end
 

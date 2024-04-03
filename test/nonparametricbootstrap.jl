@@ -14,13 +14,13 @@ isdefined(@__MODULE__, :io) || const io = IOBuffer()
     # test marking as not fit
     @test_logs (:warn,) show(io, rm1)
 
-    non = nonparametricbootstrap(StableRNG(42), 1000, m1)
+    non = nonparametricbootstrap(StableRNG(42), 1000, m1; progress=false)
     @test non isa MixedModelBootstrap
 
     nondf = DataFrame(shortestcovint(non))
 
     # when scale inflation is correct, par and non should line up very closely.
-    par = parametricbootstrap(StableRNG(42), 1000, m1)
+    par = parametricbootstrap(StableRNG(42), 1000, m1; progress=false)
     pardf = DataFrame(shortestcovint(par))
 
     let rho = filter(:type => ==("ρ"), nondf)
