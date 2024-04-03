@@ -1,4 +1,7 @@
 name: Documenter
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 on:
   push:
     branches: [main]
@@ -11,7 +14,11 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+      - name: Cache
+        uses: julia-actions/cache@v1
+        with:
+          cache-compiled: "true"              
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-docdeploy@latest
         env:
